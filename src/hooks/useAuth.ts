@@ -48,6 +48,10 @@ export function useAuth() {
           updatedAt: serverTimestamp(),
         }, { merge: true });
       }
+      
+      // Forzar actualización del estado user
+      // El onAuthStateChanged debería actualizarlo, pero aseguramos redirección
+      setUser(firebaseUser);
     } catch (error: unknown) {
       console.error("Error en login con Google:", error);
       const err = error as { code?: string; message?: string };
