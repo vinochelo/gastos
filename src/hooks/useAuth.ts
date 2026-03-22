@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -47,9 +48,10 @@ export function useAuth() {
           updatedAt: serverTimestamp(),
         }, { merge: true });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error en login con Google:", error);
-      // No lanzar el error para no romper la UI, solo loguearlo
+      const err = error as Error;
+      setError(err.message || "Error al iniciar sesión");
     }
   };
 
@@ -57,5 +59,5 @@ export function useAuth() {
     await signOut(auth);
   };
 
-  return { user, loading, loginWithGoogle, logout };
+  return { user, loading, loginWithGoogle, logout, error };
 }

@@ -5,7 +5,7 @@ import { LogIn } from "lucide-react";
 import Image from "next/image";
 
 export default function LoginPage() {
-  const { loginWithGoogle, loading } = useAuth();
+  const { loginWithGoogle, loading, error } = useAuth();
 
   if (loading) return <div className="flex h-screen items-center justify-center font-bold italic opacity-30">Cargando...</div>;
 
@@ -22,6 +22,7 @@ export default function LoginPage() {
         </div>
         <h2 className="text-2xl font-bold">Bienvenido</h2>
         <p className="text-sm text-foreground/50">Inicia sesión para sincronizar tus gastos con tu bot de Telegram.</p>
+        {error && <p className="text-red-500 text-sm bg-red-50 p-3 rounded-lg">{error}</p>}
         <button 
           onClick={loginWithGoogle}
           className="w-full bg-foreground text-background py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-xl"
