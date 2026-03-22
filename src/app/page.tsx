@@ -9,13 +9,23 @@ import CategoryChart from "@/components/CategoryChart";
 import MonthlySummary from "@/components/MonthlySummary";
 import { auth, db } from "@/lib/firebase";
 import { deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
   const { accounts } = useAccounts();
   const { transactions } = useRecentTransactions(10);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  if (loading) return <div className="flex h-screen items-center justify-center font-bold italic opacity-30">Cargando...</div>;
+  if (!user) {
+    router.push("/login");
+    return null;
+  }
 
   const handleDeleteTx = async (tx: Transaction) => {
     if (!confirm("¿Eliminar transacción y revertir saldo?")) return;
@@ -59,7 +69,7 @@ export default function Dashboard() {
                 <p className="text-xs font-black italic">{auth.currentUser?.email}</p>
               </div>
               <button 
-                onClick={() => auth.signOut()}
+                onClick={() => logout()}
                 className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all group"
               >
                 <span className="font-black italic text-xs">CERRAR SESIÓN</span>
