@@ -1,6 +1,6 @@
 'use client';
 
-import { useRecentTransactions } from "@/hooks/useFirestore";
+import { useRecentTransactions, Transaction } from "@/hooks/useFirestore";
 import { TrendingDown, TrendingUp, Calendar, Filter, Trash2, ArrowRightLeft } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
@@ -8,10 +8,10 @@ import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
 export default function TransaccionesPage() {
   const { transactions, loading } = useRecentTransactions(100);
 
-  const handleDeleteTx = async (tx: any) => {
+  const handleDeleteTx = async (tx: Transaction) => {
     if (!confirm("¿Seguro que quieres eliminar esta transacción? Se revertirá el saldo.")) return;
     try {
-      if (tx.tipo === "transferencia") {
+      if (tx.tipo === "transferencia" && tx.fromId && tx.toId) {
         const fromRef = doc(db, "accounts", tx.fromId);
         const toRef = doc(db, "accounts", tx.toId);
         await updateDoc(fromRef, { saldo: increment(tx.monto) });
@@ -67,7 +67,11 @@ export default function TransaccionesPage() {
                   <span className="opacity-50">•</span>
                   <div className="flex items-center gap-1">
                     <Calendar size={12} className="opacity-50" />
-                    {new Date(tx.timestamp?.seconds * 1000).toLocaleDateString('es-EC', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {(() => {
+                      const ts = tx.timestamp;
+                      const date = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts));
+                      return date.toLocaleDateString('es-EC', { day: 'numeric', month: 'short', year: 'numeric' });
+                    })()}
                   </div>
                 </div>
               </div>

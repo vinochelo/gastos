@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
-import { Send, Bot, Trash2, Tag, Plus, X, TrendingDown, TrendingUp } from "lucide-react";
+import { Send, Bot, Trash2, Plus, X, TrendingDown, TrendingUp } from "lucide-react";
+import { UserConfig } from "@/hooks/useFirestore";
 
 const DEFAULT_EXPENSES = ["Comida", "Transporte", "Ocio", "Salud", "Hogar", "Otros"];
 const DEFAULT_INCOMES = ["Salario", "Venta", "Inversión", "Regalo"];
@@ -16,7 +17,7 @@ export default function AjustesPage() {
   const [expenseCategories, setExpenseCategories] = useState<string[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [userDoc, setUserDoc] = useState<any>(null);
+  const [userDoc, setUserDoc] = useState<UserConfig | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function AjustesPage() {
       if (user) {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
-          const data = snap.data();
+          const data = snap.data() as UserConfig;
           setUserDoc(data);
           setTelegramId(data.telegramId || "");
           // Migración o carga de datos
@@ -54,7 +55,7 @@ export default function AjustesPage() {
         telegramId: telegramId
       });
       alert("✅ ¡Telegram ID guardado!");
-    } catch (e) {
+    } catch {
       alert("❌ Error al guardar.");
     } finally {
       setLoading(false);
@@ -88,6 +89,10 @@ export default function AjustesPage() {
       if (type === 'expense') setExpenseCategories(prev => prev.filter(c => c !== cat));
       else setIncomeCategories(prev => prev.filter(c => c !== cat));
     } catch (e) { console.error(e); }
+  };
+
+  const deleteAccount = async () => {
+    if (!confirm("¿Estás seguro de eliminar tu cuenta?")) return;
   };
 
   if (authLoading) return (
@@ -188,7 +193,7 @@ export default function AjustesPage() {
            <Trash2 size={24} />
            <h2 className="text-md font-black italic uppercase tracking-tighter">Zona Crítica</h2>
         </div>
-        <button className="w-full bg-red-500/5 text-red-500 py-4 rounded-3xl font-black italic hover:bg-red-500 hover:text-white transition-all">
+        <button onClick={deleteAccount} className="w-full bg-red-500/5 text-red-500 py-4 rounded-3xl font-black italic hover:bg-red-500 hover:text-white transition-all">
           Cerrar Cuenta Definitivamente
         </button>
       </section>

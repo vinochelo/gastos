@@ -1,11 +1,16 @@
 'use client';
 
 import { useAccounts } from "@/hooks/useFirestore";
-import { Plus, Wallet, CreditCard, Banknote, MoreVertical } from "lucide-react";
+import { Plus, Wallet, CreditCard, Banknote, MoreVertical, LucideIcon } from "lucide-react";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection } from "firebase/firestore";
 
-const ACCOUNT_TYPES: Record<string, any> = {
+interface AccountConfig {
+  icon: LucideIcon;
+  color: string;
+}
+
+const ACCOUNT_TYPES: Record<string, AccountConfig> = {
   "Produbanco": { icon: CreditCard, color: "bg-green-500/10 text-green-600" },
   "Guayaquil": { icon: CreditCard, color: "bg-pink-500/10 text-pink-600" },
   "DeUna": { icon: Wallet, color: "bg-yellow-500/10 text-yellow-600" },

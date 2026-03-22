@@ -1,12 +1,12 @@
 'use client';
 
 import { auth, db } from "@/lib/firebase";
-import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from "firebase/auth";
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
 export function useAuth() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export function useAuth() {
           updatedAt: serverTimestamp(),
         }, { merge: true });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error en login con Google:", error);
       // No lanzar el error para no romper la UI, solo loguearlo
     }

@@ -3,8 +3,31 @@ import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
+
+export interface Account {
+  id: string;
+  userId: string;
+  nombre: string;
+  saldo: number;
+  tipo: string;
+}
+
+export interface Transaction {
+  id: string;
+  userId: string;
+  monto: number;
+  tipo: "gasto" | "ingreso" | "transferencia";
+  categoria: string;
+  descripcion?: string;
+  accountId?: string;
+  fromId?: string;
+  toId?: string;
+  timestamp: { toDate: () => Date } | Date;
+  fuente: string;
+}
+
 export function useAccounts() {
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,7 +47,7 @@ export function useAccounts() {
         where("userId", "==", user.uid)
       );
       unsubscribeFirestore = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
         setAccounts(data);
         setLoading(false);
       });
@@ -38,7 +61,7 @@ export function useAccounts() {
 }
 
 export function useRecentTransactions(limitCount = 10) {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,7 +83,7 @@ export function useRecentTransactions(limitCount = 10) {
         limit(limitCount)
       );
       unsubscribeFirestore = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
         setTransactions(data);
         setLoading(false);
       });
@@ -73,8 +96,19 @@ export function useRecentTransactions(limitCount = 10) {
   return { transactions, loading };
 }
 
+export interface UserConfig {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  telegramId: string;
+  expenseCategories?: string[];
+  incomeCategories?: string[];
+  categories?: string[];
+}
+
 export function useUserConfig() {
-  const [config, setConfig] = useState<any>(null);
+  const [config, setConfig] = useState<UserConfig | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -92,7 +126,7 @@ export function useUserConfig() {
       const userRef = doc(db, "users", user.uid);
       unsubscribeFirestore = onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
-          setConfig(snapshot.data());
+          setConfig(snapshot.data() as UserConfig);
         }
         setLoading(false);
       });

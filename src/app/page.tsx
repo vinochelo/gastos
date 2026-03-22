@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from "react";
-import { useAccounts, useRecentTransactions } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, History, User, LogOut, Trash2 } from "lucide-react";
+import { useAccounts, useRecentTransactions, Transaction } from "@/hooks/useFirestore";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, User, LogOut, Trash2 } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import CategoryChart from "@/components/CategoryChart";
@@ -11,13 +11,13 @@ import { auth, db } from "@/lib/firebase";
 import { deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
 
 export default function Dashboard() {
-  const { accounts, loading: accLoading } = useAccounts();
-  const { transactions, loading: txLoading } = useRecentTransactions(10);
+  const { accounts } = useAccounts();
+  const { transactions } = useRecentTransactions(10);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const handleDeleteTx = async (tx: any) => {
+  const handleDeleteTx = async (tx: Transaction) => {
     if (!confirm("¿Eliminar transacción y revertir saldo?")) return;
     try {
       const mult = tx.tipo === 'ingreso' ? -1 : 1;
@@ -25,12 +25,12 @@ export default function Dashboard() {
         await updateDoc(doc(db, "accounts", tx.accountId), {
           saldo: increment(mult * tx.monto)
         });
-      } else if (tx.tipo === 'transferencia') {
+      } else if (tx.tipo === 'transferencia' && tx.fromId && tx.toId) {
         await updateDoc(doc(db, "accounts", tx.fromId), { saldo: increment(tx.monto) });
         await updateDoc(doc(db, "accounts", tx.toId), { saldo: increment(-tx.monto) });
       }
       await deleteDoc(doc(db, "transactions", tx.id));
-    } catch (e) {
+    } catch {
       alert("Error al eliminar.");
     }
   };

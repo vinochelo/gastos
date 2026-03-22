@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Home, List, Wallet, Settings } from "lucide-react";
+import { Home, List, Wallet, Settings, LucideIcon } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,7 +17,7 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-const ICONS: Record<string, any> = { Home, List, Wallet, Settings };
+const ICONS: Record<string, LucideIcon> = { Home, List, Wallet, Settings };
 
 export default function RootLayout({
   children,

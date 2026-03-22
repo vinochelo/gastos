@@ -5,7 +5,7 @@ import { TrendingUp, TrendingDown, ArrowRightLeft, Wallet, Calendar } from "luci
 import { useMemo } from "react";
 
 export default function MonthlySummary() {
-  const { transactions } = useRecentTransactions(100); // Tomamos suficientes para el mes
+  const { transactions } = useRecentTransactions(100); 
   const { accounts } = useAccounts();
 
   const stats = useMemo(() => {
@@ -17,7 +17,8 @@ export default function MonthlySummary() {
     let expense = 0;
 
     transactions.forEach(tx => {
-      const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date(tx.timestamp);
+      const ts = tx.timestamp;
+      const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
       if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
         if (tx.tipo === 'ingreso') income += tx.monto;
         else if (tx.tipo === 'gasto') expense += tx.monto;
@@ -40,9 +41,9 @@ export default function MonthlySummary() {
           <Calendar size={120} />
         </div>
         <div className="space-y-1 relative">
-          <p className="text-[10px] font-black opacity-40 uppercase tracking-widest italic flex items-center gap-2">
+          <div className="text-[10px] font-black opacity-40 uppercase tracking-widest italic flex items-center gap-2">
             <ArrowRightLeft size={12} /> TRASLADO MES ANTERIOR
-          </p>
+          </div>
           <p className="text-3xl font-black italic tracking-tighter text-foreground/80">
             ${stats.prevMonthBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
           </p>
@@ -55,9 +56,9 @@ export default function MonthlySummary() {
           <Wallet size={120} />
         </div>
         <div className="space-y-1 relative">
-          <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em] italic flex items-center gap-2">
-            DISPONIBLE TOTAL <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
-          </p>
+          <div className="text-[10px] font-black text-primary uppercase tracking-[0.3em] italic flex items-center gap-2">
+            DISPONIBLE TOTAL <span className="w-1 h-1 bg-primary rounded-full animate-pulse" />
+          </div>
           <p className="text-4xl font-black italic tracking-tighter text-primary drop-shadow-sm">
             ${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
           </p>
@@ -71,7 +72,7 @@ export default function MonthlySummary() {
              <TrendingUp size={24} />
            </div>
            <div>
-             <p className="text-[9px] font-black opacity-40 uppercase italic tracking-tighter">INGRESOS {monthName}</p>
+             <div className="text-[9px] font-black opacity-40 uppercase italic tracking-tighter">INGRESOS {monthName}</div>
              <p className="text-xl font-black italic text-green-500">+${stats.income.toFixed(2)}</p>
            </div>
         </div>
@@ -80,7 +81,7 @@ export default function MonthlySummary() {
              <TrendingDown size={24} />
            </div>
            <div>
-             <p className="text-[9px] font-black opacity-40 uppercase italic tracking-tighter">GASTOS {monthName}</p>
+             <div className="text-[9px] font-black opacity-40 uppercase italic tracking-tighter">GASTOS {monthName}</div>
              <p className="text-xl font-black italic text-red-500">-${stats.expense.toFixed(2)}</p>
            </div>
         </div>

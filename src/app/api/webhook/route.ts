@@ -10,7 +10,7 @@ import os from "os";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || "");
 
-async function processIncomingTransaction(ctx: any, userId: string, userInput: string, isAudio: boolean = false) {
+async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise<unknown> }, userId: string, userInput: string, isAudio = false) {
   try {
     const userDoc = await adminDb.collection("users").doc(userId).get();
     const userData = userDoc.data() || {};
@@ -124,7 +124,7 @@ bot.on("text", async (ctx) => {
     const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
     if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
     await processIncomingTransaction(ctx, userSnap.docs[0].id, ctx.message.text);
-  } catch (error) { ctx.reply("❌ Error."); }
+  } catch { ctx.reply("❌ Error."); }
 });
 
 bot.on("voice", async (ctx) => {
@@ -147,8 +147,8 @@ bot.on("voice", async (ctx) => {
      const transcription = await transcribeAudio(tempPath);
      ctx.reply(`📝 "${transcription}"`);
      await processIncomingTransaction(ctx, userId, transcription, true);
-     try { fs.unlinkSync(tempPath); } catch(e) {}
-  } catch (error) { ctx.reply("❌ Error de audio."); }
+     try { fs.unlinkSync(tempPath); } catch { /* ignore */ }
+  } catch { ctx.reply("❌ Error de audio."); }
 });
 
 export async function POST(req: NextRequest) {
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     await bot.handleUpdate(body);
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Invalid update" }, { status: 400 });
   }
 }

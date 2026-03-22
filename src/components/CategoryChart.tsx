@@ -1,9 +1,14 @@
 'use client';
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, CellProps } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useRecentTransactions } from '@/hooks/useFirestore';
 import { useState } from 'react';
 import { Wallet, TrendingUp, TrendingDown } from 'lucide-react';
+
+interface CategoryData {
+  name: string;
+  value: number;
+}
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#4ade80', '#fb7185', '#2dd4bf'];
 
@@ -11,11 +16,10 @@ export default function CategoryChart() {
   const { transactions } = useRecentTransactions(100);
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
 
-  // Agrupar por categoría
   const categoryData = transactions
     .filter(tx => tx.tipo === activeType)
-    .reduce((acc: any[], tx) => {
-      const existing = acc.find((item: any) => item.name === tx.categoria);
+    .reduce((acc: CategoryData[], tx) => {
+      const existing = acc.find((item) => item.name === tx.categoria);
       if (existing) {
         existing.value += Math.abs(tx.monto);
       } else {
@@ -83,14 +87,14 @@ export default function CategoryChart() {
               <Tooltip 
                 contentStyle={{ background: 'rgba(255,255,255,0.95)', border: 'none', borderRadius: '24px', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}
                 itemStyle={{ color: '#000' }}
-                formatter={(value: number) => [`$${value.toLocaleString('es-EC', { minimumFractionDigits: 2 })}`, 'Importe']}
+                formatter={(value) => [`$${Number(value).toLocaleString('es-EC', { minimumFractionDigits: 2 })}`, 'Importe']}
               />
             </PieChart>
           </ResponsiveContainer>
         </div>
 
         <div className="w-full md:w-2/5 space-y-3">
-          {categoryData.slice(0, 5).map((entry: any, index: number) => (
+          {categoryData.slice(0, 5).map((entry, index: number) => (
             <div key={entry.name} className="flex items-center justify-between group">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }} />

@@ -27,7 +27,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
     if (categories.length > 0) {
       setCategory(categories[0]);
     }
-  }, [type, config]);
+  }, [type, categories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
