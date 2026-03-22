@@ -35,7 +35,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
     const results: string[] = [];
 
     for (const item of result.items) {
-      if (!item.monto) continue;
+      if (!item.monto && item.tipo !== "consulta_saldo") continue;
       const monto = Math.abs(item.monto);
       
       let timestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -86,6 +86,74 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           batch.update(toDoc.ref, { saldo: admin.firestore.FieldValue.increment(monto) });
           results.push(`✅ Trf: $${monto} de ${fromDoc.data().nombre} a ${toDoc.data().nombre}.`);
         }
+      } else if (item.tipo === "consulta_saldo") {
+        const cuentaBuscada = item.cuenta?.toLowerCase();
+        let mensaje = "💰 *SALDOS:*\n";
+        let total = 0;
+        
+        if (cuentaBuscada === "todas" || !cuentaBuscada) {
+          for (const doc of accountsSnap.docs) {
+            const data = doc.data();
+            mensaje += `• ${data.nombre}: $${(data.saldo || 0).toFixed(2)}\n`;
+            total += data.saldo || 0;
+          }
+          mensaje += `────────────────\n*TOTAL:* $${total.toFixed(2)}`;
+        } else {
+          const cuentaMatch = accountsSnap.docs.find(d => 
+            d.data().nombre.toLowerCase().includes(cuentaBuscada) ||
+            cuentaBuscada.includes(d.data().nombre.toLowerCase())
+          );
+          if (cuentaMatch) {
+            const data = cuentaMatch.data();
+            mensaje = `💰 *${data.nombre}:* $${(data.saldo || 0).toFixed(2)}`;
+          } else {
+            mensaje = `❌ No encontré la cuenta "${item.cuenta}".`;
+          }
+        }
+        ctx.reply(mensaje);
+        return;
+      } else if (item.tipo === "consulta_gasto_categoria") {
+        const catBuscada = item.categoria;
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        
+        const transSnap = await adminDb.collection("transactions")
+          .where("userId", "==", userId)
+          .where("tipo", "==", "gasto")
+          .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
+          .get();
+        
+        let total = 0;
+        let count = 0;
+        const mesActual = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+        
+        if (catBuscada) {
+          const catLower = catBuscada.toLowerCase();
+          for (const doc of transSnap.docs) {
+            const data = doc.data();
+            if (data.categoria?.toLowerCase().includes(catLower)) {
+              total += data.monto || 0;
+              count++;
+            }
+          }
+          ctx.reply(`📊 GASTOS EN ${catBuscada.toUpperCase()} (${mesActual}):\n\n💰 Total: $${total.toFixed(2)}\n📝 Transacciones: ${count}`);
+        } else {
+          const porCategoria: Record<string, number> = {};
+          for (const doc of transSnap.docs) {
+            const data = doc.data();
+            const cat = data.categoria || "Varios";
+            porCategoria[cat] = (porCategoria[cat] || 0) + (data.monto || 0);
+          }
+          let msg = `📊 GASTOS DEL MES (${mesActual}):\n\n`;
+          for (const [cat, monto] of Object.entries(porCategoria).sort((a, b) => b[1] - a[1])) {
+            msg += `• ${cat}: $${monto.toFixed(2)}\n`;
+          }
+          const totalGastos = Object.values(porCategoria).reduce((a, b) => a + b, 0);
+          msg += `\n💰 TOTAL: $${totalGastos.toFixed(2)}`;
+          ctx.reply(msg);
+        }
+        return;
       } else {
         const accountDoc = accountsSnap.docs.find(d => 
           d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||

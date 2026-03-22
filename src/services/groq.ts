@@ -30,6 +30,13 @@ export async function parseTransaction(text: string, accountNames: string[], use
     1. Registrar transacciones (gasto, ingreso, transferencia).
     2. RECLASIFICAR: Si el usuario quiere cambiar la categoría de algo ya registrado. Ej: "Pasa los 4.5 de juegos a juguetes".
     3. FECHAS: Interpreta si fue "hoy", "ayer", "el lunes pasado", "hace 3 días", etc., y calcula la fecha exacta basándote en que hoy es ${dateStr}.
+    4. CONSULTAR SALDO: Si el usuario pregunta por el saldo de una o varias cuentas, o dice "mi saldo", "cuánto tengo", "balances", "saldos", etc.
+       - Si menciona una cuenta específica (ej: "saldo de efectivo", "cuánto tengo en banco"), devuelve tipo: "consulta_saldo" con la cuenta.
+       - Si dice "todas", "todos", "todo", "todos los saldos", "mi balance", devuelve tipo: "consulta_saldo" con cuenta: "todas".
+       - Soporta variaciones como "cuánto dinero tengo", "dime mi saldo", "balance de mis cuentas", "cuál es mi situación", "estado de cuenta".
+    5. CONSULTAR GASTOS POR CATEGORÍA: Si el usuario pregunta cuánto gastó en algo específico, ej: "cuánto gasté en transporte", "gastos en comida", "cuánto pagué en servicios", "gastos del mes en salud".
+       - Detecta la categoría mentioned y devuelve tipo: "consulta_gasto_categoria" con la categoría.
+       - Soporta palabras como "gasté", "gastos", "pagué", "pago", "cuánto", "cuánta" + nombre de categoría.
 
     REGLAS DE CLASIFICACIÓN:
     - "Golosinas": Pastel, dulces, snacks.
@@ -51,7 +58,7 @@ export async function parseTransaction(text: string, accountNames: string[], use
           "fromCuenta": string,
           "toCuenta": string,
           "descripcion": string,
-          "tipo": "gasto" | "ingreso" | "transferencia" | "reclasificar",
+          "tipo": "gasto" | "ingreso" | "transferencia" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria",
           "fecha": "YYYY-MM-DD" (calculada según el texto, defecto hoy)
         }
       ]
