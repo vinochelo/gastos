@@ -50,8 +50,18 @@ export function useAuth() {
       }
     } catch (error: unknown) {
       console.error("Error en login con Google:", error);
-      const err = error as Error;
-      setError(err.message || "Error al iniciar sesión");
+      const err = error as { code?: string; message?: string };
+      let errorMessage = "Error al iniciar sesión";
+      
+      if (err.code === "auth/popup-closed-by-user") {
+        errorMessage = "Ventana cerrada. Intenta de nuevo.";
+      } else if (err.code === "auth/unauthorized-domain") {
+        errorMessage = "Dominio no autorizado. Contacta al administrador.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     }
   };
 
