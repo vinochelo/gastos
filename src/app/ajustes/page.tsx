@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
-import { Send, Bot, Trash2, Plus, X, TrendingDown, TrendingUp } from "lucide-react";
+import { Send, Bot, Trash2, Plus, X, TrendingDown, TrendingUp, Instagram } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 
 const DEFAULT_EXPENSES = ["Comida", "Transporte", "Ocio", "Salud", "Hogar", "Otros"];
@@ -130,6 +130,62 @@ export default function AjustesPage() {
           <button onClick={saveTelegramId} disabled={loading} className="bg-primary text-white p-5 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">
             <Send size={24} />
           </button>
+        </div>
+      </section>
+
+      {/* Instagram */}
+      <section className="glass p-8 rounded-[3rem] space-y-6 shadow-2xl relative overflow-hidden group border-pink-500/10 hover:border-pink-500/20 transition-colors">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 blur-3xl rounded-full" />
+        <div className="flex items-center gap-4 text-pink-500 relative">
+          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+          </svg>
+          <h2 className="text-xl font-black italic uppercase tracking-tight">Conexión Instagram</h2>
+        </div>
+        <p className="text-sm text-foreground/60">Conecta tu Instagram para compartir tus logros financieros con tus seguidores.</p>
+        
+        {/* Instrucciones simplificadas */}
+        <div className="bg-pink-500/5 p-5 rounded-3xl border border-pink-500/10 space-y-4">
+          <p className="text-[10px] font-black text-pink-500/50 uppercase tracking-widest">Cómo conectar:</p>
+          <ol className="space-y-3 text-sm">
+            <li className="flex gap-3 items-start">
+              <span className="bg-pink-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
+              <span>Ve a <a href="https://developers.facebook.com" target="_blank" className="text-pink-500 underline">developers.facebook.com</a></span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="bg-pink-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
+              <span>Crea una cuenta de desarrollador (solo email)</span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="bg-pink-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
+              <span>Crea una nueva App → tipo "Consumer"</span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="bg-pink-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">4</span>
+              <span>En "Productos" busca Instagram y agrega "Instagram Graph API"</span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="bg-pink-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">5</span>
+              <span>Copia el <span className="font-mono bg-white/50 px-1 rounded">Access Token</span> y pégalo aquí:</span>
+            </li>
+          </ol>
+          
+          <div className="flex gap-2 pt-2">
+            <input 
+              type="text"
+              placeholder="Peg aquí tu Access Token de Instagram..."
+              className="flex-1 glass border-none p-4 rounded-2xl focus:ring-4 ring-pink-500/20 font-mono text-sm"
+            />
+            <button className="bg-pink-500 text-white p-4 rounded-2xl shadow-lg hover:scale-105 transition-all">
+              <Send size={20} />
+            </button>
+          </div>
+        </div>
+        
+        <div className="text-center">
+          <span className="text-[10px] font-black text-pink-500/30 uppercase tracking-widest bg-pink-500/5 px-4 py-2 rounded-full">
+            Próximamente: publicación automática de gastos
+          </span>
         </div>
       </section>
 
