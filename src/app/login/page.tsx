@@ -3,9 +3,20 @@
 import { useAuth } from "@/hooks/useAuth";
 import { LogIn } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function LoginPage() {
-  const { loginWithGoogle, loading, error } = useAuth();
+  const { loginWithGoogle, loading, error, user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      router.push("/");
+    }
+  }, [user, router]);
+
+  if (loading) return <div className="flex h-screen items-center justify-center font-bold italic opacity-30">Cargando...</div>;
 
   if (loading) return <div className="flex h-screen items-center justify-center font-bold italic opacity-30">Cargando...</div>;
 
