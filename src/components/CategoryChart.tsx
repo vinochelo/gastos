@@ -2,7 +2,7 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useRecentTransactions } from '@/hooks/useFirestore';
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { ChevronLeft } from "lucide-react";
 
 interface CategoryData {
@@ -16,7 +16,7 @@ const COLORS = [
   '#f97316', '#14b8a6', '#a855f7', '#3b82f6',
 ];
 
-export default function CategoryChart({ onCategorySelect }: { onCategorySelect?: (category: string | null, type: 'gasto' | 'ingreso') => void }) {
+export default function CategoryChart() {
   const { transactions } = useRecentTransactions(100);
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -51,19 +51,13 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
 
   const categoryTotal = categoryTransactions.reduce((sum, tx) => sum + tx.monto, 0);
 
-  const handleCategoryClick = (categoryName: string) => {
+  const handleCategoryClick = useCallback((categoryName: string) => {
     setSelectedCategory(categoryName);
-    if (onCategorySelect) {
-      onCategorySelect(categoryName, activeType);
-    }
-  };
+  }, []);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     setSelectedCategory(null);
-    if (onCategorySelect) {
-      onCategorySelect(null, activeType);
-    }
-  };
+  }, []);
 
   if (selectedCategory) {
     return (
@@ -71,9 +65,9 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
         <div className="flex items-center gap-3 mb-6">
           <button 
             onClick={handleBack}
-            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center"
+            className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={20} />
           </button>
           <div>
             <h3 className="text-lg font-bold">{selectedCategory}</h3>
@@ -81,7 +75,7 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
           </div>
         </div>
 
-        <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="space-y-2 max-h-80 overflow-y-auto">
           {categoryTransactions.map((tx) => {
             const ts = tx.timestamp;
             const date = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
@@ -89,7 +83,7 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
               <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
                 <div>
                   <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-xs opacity-40">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</p>
+                  <p className="text-xs opacity-40">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                 </div>
                 <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
                   {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
@@ -99,7 +93,7 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
           })}
           
           {categoryTransactions.length === 0 && (
-            <p className="text-center py-8 opacity-40">Sin transacciones en esta categoría</p>
+            <p className="text-center py-8 opacity-40">Sin transacciones</p>
           )}
         </div>
       </div>
@@ -108,19 +102,14 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
 
   if (transactions.length === 0 || categoryData.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-10 text-center border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-gray-700">
         <p className="text-base opacity-40">Sin datos de {activeType}s</p>
       </div>
     );
   }
 
-  const formatAmount = (amount: number) => {
-    return amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-2 h-8 bg-indigo-500 rounded-full" />
@@ -147,20 +136,19 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
         </div>
       </div>
 
-      {/* Chart grande */}
-      <div className="flex items-center gap-10">
-        <div className="relative h-72 w-72 flex-shrink-0">
+      <div className="flex flex-col lg:flex-row items-center gap-8">
+        <div className="relative h-64 w-64 flex-shrink-0">
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
             <p className="text-xs font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
-            <p className="text-3xl font-bold">${formatAmount(total)}</p>
+            <p className="text-2xl font-bold">${total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
           </div>
           
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={categoryData}
-                innerRadius={65}
-                outerRadius={115}
+                innerRadius={55}
+                outerRadius={100}
                 paddingAngle={2}
                 dataKey="value"
               >
@@ -176,8 +164,7 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
           </ResponsiveContainer>
         </div>
 
-        {/* Legend */}
-        <div className="flex-1 space-y-0">
+        <div className="flex-1 w-full space-y-0">
           {categoryData.map((entry, index: number) => {
             const percentage = ((entry.value / total) * 100).toFixed(1);
             
@@ -185,18 +172,18 @@ export default function CategoryChart({ onCategorySelect }: { onCategorySelect?:
               <button
                 key={entry.name}
                 onClick={() => handleCategoryClick(entry.name)}
-                className="w-full flex items-center justify-between py-2.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg px-2 -mx-2 transition-colors"
+                className="w-full flex items-center justify-between py-3 border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2 transition-colors active:bg-gray-100 dark:active:bg-gray-600"
               >
                 <div className="flex items-center gap-3">
                   <div 
-                    className="w-3.5 h-3.5 rounded-full"
+                    className="w-4 h-4 rounded-full shadow-sm"
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
                   <span className="text-sm font-medium">{entry.name}</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium opacity-60">${formatAmount(entry.value)}</span>
-                  <span className="text-base font-bold w-14 text-right">{percentage}%</span>
+                  <span className="text-sm font-medium opacity-60">${entry.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-base font-bold w-12 text-right">{percentage}%</span>
                 </div>
               </button>
             );

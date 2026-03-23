@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore";
-import { X, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
+import { X, ChevronDown, TrendingUp, TrendingDown, Tag } from "lucide-react";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 
 export default function AddTransactionModal({ isOpen, onClose, defaultType = "gasto" }: { isOpen: boolean, onClose: () => void, defaultType?: "gasto" | "ingreso" }) {
@@ -22,10 +22,19 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const categories = type === "gasto" ? expenseCategories : incomeCategories;
 
   useEffect(() => {
-    if (categories.length > 0 && !categories.includes(category)) {
+    if (isOpen) {
+      setAmount("");
+      setDescription("");
+      setType(defaultType);
+      setAccountId("");
+    }
+  }, [isOpen, defaultType]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !category) {
       setCategory(categories[0]);
     }
-  }, [type, categories, category]);
+  }, [categories, category]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +48,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       await addDoc(collection(db, "transactions"), {
         userId: auth.currentUser.uid,
         monto,
-        descripcion: description,
+        descripcion: description || category,
         categoria: category,
         accountId,
         tipo: type,
@@ -66,84 +75,89 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="glass w-full max-w-md rounded-[2rem] p-8 space-y-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 border-white/5">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl p-6 space-y-5 shadow-2xl border border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center">
-          <div className="flex bg-foreground/5 p-1 rounded-2xl gap-1">
-             <button 
-               onClick={() => { setType("gasto"); }}
-               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'gasto' ? 'bg-white text-red-500 shadow-sm' : 'text-foreground/40'}`}
-             >
-               <TrendingDown size={14} /> GASTO
-             </button>
-             <button 
-               onClick={() => { setType("ingreso"); }}
-               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'ingreso' ? 'bg-white text-green-500 shadow-sm' : 'text-foreground/40'}`}
-             >
-               <TrendingUp size={14} /> INGRESO
-             </button>
+          <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-2xl gap-1">
+            <button 
+              onClick={() => setType("gasto")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'gasto' ? 'bg-red-500 text-white' : 'text-gray-500'}`}
+            >
+              <TrendingDown size={14} /> Gasto
+            </button>
+            <button 
+              onClick={() => setType("ingreso")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'ingreso' ? 'bg-green-500 text-white' : 'text-gray-500'}`}
+            >
+              <TrendingUp size={14} /> Ingreso
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-foreground/5 rounded-full"><X /></button>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><X size={20} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="relative group">
-            <span className={`absolute left-6 top-1/2 -translate-y-1/2 text-4xl font-bold transition-colors ${type === 'gasto' ? 'text-red-500/20' : 'text-green-500/20'}`}>$</span>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="relative">
+            <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-bold ${type === 'gasto' ? 'text-red-400' : 'text-green-400'}`}>$</span>
             <input 
               type="number" 
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
-              className={`w-full bg-foreground/[0.03] border-none text-5xl font-bold p-8 px-12 rounded-3xl focus:ring-4 transition-all text-center ${type === 'gasto' ? 'ring-red-500/10 text-red-500' : 'ring-green-500/10 text-green-500'}`}
+              className={`w-full bg-gray-50 dark:bg-gray-900 border-none text-4xl font-bold p-6 pl-12 rounded-2xl text-center ${type === 'gasto' ? 'text-red-500' : 'text-green-500'}`}
               required
               autoFocus
             />
           </div>
 
-          <input 
-            type="text"
-            placeholder={type === 'gasto' ? "¿En qué gastaste?" : "¿De dónde viene el dinero?"}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full glass border-none p-5 rounded-2xl focus:ring-2 ring-primary text-sm font-medium"
-          />
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1 flex items-center gap-1">
+              <Tag size={10} /> Detalle (ej: viaje a la iglesia)
+            </label>
+            <input 
+              type="text"
+              placeholder="Describe el gasto..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-medium"
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
-             <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider px-2 opacity-30">Categoría</label>
-                <div className="relative">
-                  <select 
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full glass border-none p-4 rounded-2xl text-sm font-medium focus:ring-2 ring-primary appearance-none cursor-pointer"
-                  >
-                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20 pointer-events-none" size={16} />
-                </div>
-             </div>
-             <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider px-2 opacity-30">Cuenta</label>
-                <div className="relative">
-                  <select 
-                    value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
-                    className="w-full glass border-none p-4 rounded-2xl text-sm font-medium focus:ring-2 ring-primary appearance-none cursor-pointer"
-                    required
-                  >
-                    <option value="">Cuenta...</option>
-                    {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20 pointer-events-none" size={16} />
-                </div>
-             </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Categoría</label>
+              <div className="relative">
+                <select 
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-medium appearance-none cursor-pointer"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 pointer-events-none" size={16} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Cuenta</label>
+              <div className="relative">
+                <select 
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-medium appearance-none cursor-pointer"
+                  required
+                >
+                  <option value="">Seleccionar...</option>
+                  {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 pointer-events-none" size={16} />
+              </div>
+            </div>
           </div>
 
           <button 
-            disabled={loading}
-            className={`w-full py-6 rounded-3xl font-bold text-2xl tracking-tighter shadow-2xl hover:scale-[1.03] active:scale-95 disabled:opacity-50 transition-all text-white ${type === 'gasto' ? 'bg-red-500' : 'bg-green-500'}`}
+            disabled={loading || !amount || !accountId}
+            className={`w-full py-4 rounded-2xl font-bold text-lg transition-all disabled:opacity-50 ${type === 'gasto' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
           >
-            {loading ? "PROCESANDO..." : "LISTO"}
+            {loading ? "Guardando..." : "Guardar"}
           </button>
         </form>
       </div>

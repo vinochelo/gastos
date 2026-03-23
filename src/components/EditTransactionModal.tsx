@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { updateDoc, doc, increment } from "firebase/firestore";
-import { X } from "lucide-react";
+import { X, Tag } from "lucide-react";
 import { Transaction } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 
@@ -79,53 +79,55 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="glass w-full max-w-md rounded-[2rem] p-8 space-y-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 border-white/5">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl p-6 space-y-5 shadow-2xl border border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold">Editar Transacción</h2>
-          <button onClick={onClose} className="p-2 hover:bg-foreground/5 rounded-full"><X size={20} /></button>
+          <h2 className="text-lg font-bold">Editar Transacción</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><X size={20} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="text-xs font-semibold opacity-40 uppercase tracking-wider">Monto</label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Monto</label>
             <input 
               type="number" 
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-gray-100 dark:bg-gray-700 border-none p-4 rounded-xl text-lg font-bold mt-1"
+              className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-xl font-bold"
               required
             />
           </div>
 
-          <div>
-            <label className="text-xs font-semibold opacity-40 uppercase tracking-wider">Descripción</label>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1 flex items-center gap-1">
+              <Tag size={10} /> Detalle
+            </label>
             <input 
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-gray-100 dark:bg-gray-700 border-none p-4 rounded-xl text-sm mt-1"
-              placeholder="Descripción..."
+              className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
+              placeholder="Descripción del gasto..."
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold opacity-40 uppercase tracking-wider">Categoría</label>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Categoría</label>
               <select 
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-gray-100 dark:bg-gray-700 border-none p-4 rounded-xl text-sm mt-1"
+                className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
               >
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-xs font-semibold opacity-40 uppercase tracking-wider">Cuenta</label>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Cuenta</label>
               <select 
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
-                className="w-full bg-gray-100 dark:bg-gray-700 border-none p-4 rounded-xl text-sm mt-1"
+                className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
               >
                 <option value="">Seleccionar...</option>
                 {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
@@ -136,7 +138,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
           <button 
             type="submit"
             disabled={loading}
-            className="w-full py-4 rounded-xl font-bold text-sm bg-foreground text-background hover:opacity-90 transition-opacity"
+            className="w-full py-4 rounded-2xl font-bold text-base bg-foreground text-background hover:opacity-90 transition-opacity"
           >
             {loading ? "Guardando..." : "Guardar Cambios"}
           </button>
