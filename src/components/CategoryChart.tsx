@@ -3,8 +3,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useRecentTransactions } from '@/hooks/useFirestore';
 import { useState, useMemo } from "react";
-import { X, TrendingDown, TrendingUp, ChevronLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 
 interface CategoryData {
   name: string;
@@ -17,11 +16,10 @@ const COLORS = [
   '#f97316', '#14b8a6', '#a855f7', '#3b82f6',
 ];
 
-export default function CategoryChart() {
+export default function CategoryChart({ onCategorySelect }: { onCategorySelect?: (category: string | null, type: 'gasto' | 'ingreso') => void }) {
   const { transactions } = useRecentTransactions(100);
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const router = useRouter();
 
   const categoryData = useMemo(() => {
     return transactions
@@ -53,12 +51,26 @@ export default function CategoryChart() {
 
   const categoryTotal = categoryTransactions.reduce((sum, tx) => sum + tx.monto, 0);
 
+  const handleCategoryClick = (categoryName: string) => {
+    setSelectedCategory(categoryName);
+    if (onCategorySelect) {
+      onCategorySelect(categoryName, activeType);
+    }
+  };
+
+  const handleBack = () => {
+    setSelectedCategory(null);
+    if (onCategorySelect) {
+      onCategorySelect(null, activeType);
+    }
+  };
+
   if (selectedCategory) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-6">
           <button 
-            onClick={() => setSelectedCategory(null)}
+            onClick={handleBack}
             className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center"
           >
             <ChevronLeft size={18} />
@@ -172,7 +184,7 @@ export default function CategoryChart() {
             return (
               <button
                 key={entry.name}
-                onClick={() => setSelectedCategory(entry.name)}
+                onClick={() => handleCategoryClick(entry.name)}
                 className="w-full flex items-center justify-between py-2.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg px-2 -mx-2 transition-colors"
               >
                 <div className="flex items-center gap-3">

@@ -23,8 +23,8 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
   const [accountId, setAccountId] = useState(transaction.accountId || "");
   const [loading, setLoading] = useState(false);
 
-  const expenseCategories = config?.expenseCategories || DEFAULT_CATEGORIES;
-  const incomeCategories = config?.incomeCategories || ["Salario", "Inversion", "Regalo", "Otro"];
+  const expenseCategories = (config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES).sort((a, b) => a.localeCompare(b, 'es'));
+  const incomeCategories = (config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]).sort((a, b) => a.localeCompare(b, 'es'));
   const categories = transaction.tipo === "gasto" ? expenseCategories : incomeCategories;
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
       await updateDoc(doc(db, "transactions", transaction.id), updates);
 
       if (accountId && diff !== 0) {
-        const mult = transaction.tipo === 'ingreso' ? -1 : 1;
+        const mult = transaction.tipo === 'ingreso' ? 1 : -1;
         if (transaction.accountId) {
           await updateDoc(doc(db, "accounts", transaction.accountId), { saldo: increment(-mult * oldMonto) });
         }

@@ -13,19 +13,19 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [type, setType] = useState<"gasto" | "ingreso">(defaultType);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Comida");
+  const [category, setCategory] = useState("");
   const [accountId, setAccountId] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const expenseCategories = config?.expenseCategories || DEFAULT_CATEGORIES;
-  const incomeCategories = config?.incomeCategories || ["Salario", "Inversion", "Regalo", "Otro"];
+  const expenseCategories = (config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES).sort((a, b) => a.localeCompare(b, 'es'));
+  const incomeCategories = (config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]).sort((a, b) => a.localeCompare(b, 'es'));
   const categories = type === "gasto" ? expenseCategories : incomeCategories;
 
   useEffect(() => {
-    if (categories.length > 0) {
+    if (categories.length > 0 && !categories.includes(category)) {
       setCategory(categories[0]);
     }
-  }, [type, categories]);
+  }, [type, categories, category]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,18 +66,18 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-8 space-y-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 border-white/5">
+      <div className="glass w-full max-w-md rounded-[2rem] p-8 space-y-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 border-white/5">
         <div className="flex justify-between items-center">
           <div className="flex bg-foreground/5 p-1 rounded-2xl gap-1">
              <button 
                onClick={() => { setType("gasto"); }}
-               className={`px-4 py-2 rounded-xl text-xs font-black italic transition-all flex items-center gap-2 ${type === 'gasto' ? 'bg-white text-red-500 shadow-sm' : 'text-foreground/40'}`}
+               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'gasto' ? 'bg-white text-red-500 shadow-sm' : 'text-foreground/40'}`}
              >
                <TrendingDown size={14} /> GASTO
              </button>
              <button 
                onClick={() => { setType("ingreso"); }}
-               className={`px-4 py-2 rounded-xl text-xs font-black italic transition-all flex items-center gap-2 ${type === 'ingreso' ? 'bg-white text-green-500 shadow-sm' : 'text-foreground/40'}`}
+               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'ingreso' ? 'bg-white text-green-500 shadow-sm' : 'text-foreground/40'}`}
              >
                <TrendingUp size={14} /> INGRESO
              </button>
@@ -87,14 +87,14 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="relative group">
-            <span className={`absolute left-6 top-1/2 -translate-y-1/2 text-4xl font-black transition-colors ${type === 'gasto' ? 'text-red-500/20 group-focus-within:text-red-500' : 'text-green-500/20 group-focus-within:text-green-500'}`}>$</span>
+            <span className={`absolute left-6 top-1/2 -translate-y-1/2 text-4xl font-bold transition-colors ${type === 'gasto' ? 'text-red-500/20' : 'text-green-500/20'}`}>$</span>
             <input 
               type="number" 
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
-              className={`w-full bg-foreground/[0.03] border-none text-5xl font-black p-8 px-12 rounded-3xl focus:ring-4 transition-all text-center ${type === 'gasto' ? 'ring-red-500/10 text-red-500' : 'ring-green-500/10 text-green-500'}`}
+              className={`w-full bg-foreground/[0.03] border-none text-5xl font-bold p-8 px-12 rounded-3xl focus:ring-4 transition-all text-center ${type === 'gasto' ? 'ring-red-500/10 text-red-500' : 'ring-green-500/10 text-green-500'}`}
               required
               autoFocus
             />
@@ -105,17 +105,17 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
             placeholder={type === 'gasto' ? "¿En qué gastaste?" : "¿De dónde viene el dinero?"}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full glass border-none p-5 rounded-2xl focus:ring-2 ring-primary font-black italic"
+            className="w-full glass border-none p-5 rounded-2xl focus:ring-2 ring-primary text-sm font-medium"
           />
 
           <div className="grid grid-cols-2 gap-3">
              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest px-2 opacity-30 italic">Categoría</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider px-2 opacity-30">Categoría</label>
                 <div className="relative">
                   <select 
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full glass border-none p-4 rounded-2xl text-[10px] font-black italic focus:ring-2 ring-primary appearance-none cursor-pointer"
+                    className="w-full glass border-none p-4 rounded-2xl text-sm font-medium focus:ring-2 ring-primary appearance-none cursor-pointer"
                   >
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -123,12 +123,12 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
                 </div>
              </div>
              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest px-2 opacity-30 italic">Cuenta</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider px-2 opacity-30">Cuenta</label>
                 <div className="relative">
                   <select 
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    className="w-full glass border-none p-4 rounded-2xl text-[10px] font-black italic focus:ring-2 ring-primary appearance-none cursor-pointer text-ellipsis overflow-hidden pr-10"
+                    className="w-full glass border-none p-4 rounded-2xl text-sm font-medium focus:ring-2 ring-primary appearance-none cursor-pointer"
                     required
                   >
                     <option value="">Cuenta...</option>
@@ -141,9 +141,9 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
 
           <button 
             disabled={loading}
-            className={`w-full py-6 rounded-3xl font-black text-2xl italic tracking-tighter shadow-2xl hover:scale-[1.03] active:scale-95 disabled:opacity-50 transition-all text-white ${type === 'gasto' ? 'bg-red-500 shadow-red-500/40' : 'bg-green-500 shadow-green-500/40'}`}
+            className={`w-full py-6 rounded-3xl font-bold text-2xl tracking-tighter shadow-2xl hover:scale-[1.03] active:scale-95 disabled:opacity-50 transition-all text-white ${type === 'gasto' ? 'bg-red-500' : 'bg-green-500'}`}
           >
-            {loading ? "PROCESANDO..." : `LISTO! +`}
+            {loading ? "PROCESANDO..." : "LISTO"}
           </button>
         </form>
       </div>

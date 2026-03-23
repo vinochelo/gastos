@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<{ name: string | null; type: 'gasto' | 'ingreso' } | null>(null);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -76,102 +77,111 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Chart - MAIN */}
-      <CategoryChart />
+      {/* Chart - MAIN - Only show when no category selected */}
+      {!selectedCategory?.name && (
+        <>
+          <CategoryChart onCategorySelect={(name, type) => setSelectedCategory({ name, type })} />
 
-      {/* Balance - bajo el chart */}
-      <div className="flex gap-3">
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-          <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
-          <p className="text-xl font-bold tracking-tight">${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
-        </div>
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-          <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Gastos del mes</p>
-          <p className="text-xl font-bold tracking-tight text-red-500">${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
-        </div>
-      </div>
-
-      {/* Accounts */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold tracking-tight">Cuentas</h2>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-          {accounts.map((acc) => (
-            <div key={acc.id} className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 min-w-[140px]">
-              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 truncate">{acc.nombre}</p>
-              <p className={`text-base font-bold ${acc.saldo >= 0 ? '' : 'text-red-500'}`}>
-                ${Math.abs(acc.saldo).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-              </p>
+          {/* Balance - bajo el chart */}
+          <div className="flex gap-3">
+            <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
+              <p className="text-xl font-bold tracking-tight">${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold tracking-tight">Recientes</h2>
-          <button onClick={() => router.push('/transacciones')} className="text-xs font-semibold opacity-40 hover:opacity-100">
-            Ver todo →
-          </button>
-        </div>
-        
-        <div className="space-y-1">
-          {transactions.slice(0, 5).map((tx) => (
-            <div key={tx.id} className="bg-white dark:bg-gray-800 rounded-xl p-3 flex items-center justify-between border border-gray-100 dark:border-gray-700 group">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  tx.tipo === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
-                }`}>
-                  {tx.tipo === 'ingreso' ? (
-                    <TrendingUp size={18} className="text-green-600" />
-                  ) : (
-                    <Wallet size={18} className="opacity-60" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-xs opacity-40">{tx.categoria}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
-                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                </p>
-                <button 
-                  onClick={() => setEditingTx(tx)}
-                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg"
-                >
-                  <Settings size={12} className="text-blue-500" />
-                </button>
-                <button 
-                  onClick={() => handleDeleteTx(tx)}
-                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
-                >
-                  <TrendingDown size={12} className="text-red-500" />
-                </button>
-              </div>
+            <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Gastos del mes</p>
+              <p className="text-xl font-bold tracking-tight text-red-500">${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex-1 bg-foreground text-background rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold text-sm"
-        >
-          <Plus size={16} /> Agregar
-        </button>
-        <button
-          onClick={() => setIsTransferModalOpen(true)}
-          className="w-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center"
-        >
-          <ArrowRightLeft size={16} />
-        </button>
-      </div>
+          {/* Accounts */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold tracking-tight">Cuentas</h2>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+              {accounts.map((acc) => (
+                <div key={acc.id} className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 min-w-[140px]">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 truncate">{acc.nombre}</p>
+                  <p className={`text-base font-bold ${acc.saldo >= 0 ? '' : 'text-red-500'}`}>
+                    ${Math.abs(acc.saldo).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold tracking-tight">Recientes</h2>
+              <button onClick={() => router.push('/transacciones')} className="text-xs font-semibold opacity-40 hover:opacity-100">
+                Ver todo →
+              </button>
+            </div>
+            
+            <div className="space-y-1">
+              {transactions.slice(0, 5).map((tx) => (
+                <div key={tx.id} className="bg-white dark:bg-gray-800 rounded-xl p-3 flex items-center justify-between border border-gray-100 dark:border-gray-700 group">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      tx.tipo === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
+                    }`}>
+                      {tx.tipo === 'ingreso' ? (
+                        <TrendingUp size={18} className="text-green-600" />
+                      ) : (
+                        <Wallet size={18} className="opacity-60" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
+                      <p className="text-xs opacity-40">{tx.categoria}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
+                      {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                    </p>
+                    <button 
+                      onClick={() => setEditingTx(tx)}
+                      className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg"
+                    >
+                      <Settings size={12} className="text-blue-500" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteTx(tx)}
+                      className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
+                    >
+                      <TrendingDown size={12} className="text-red-500" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex-1 bg-foreground text-background rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold text-sm"
+            >
+              <Plus size={16} /> Agregar
+            </button>
+            <button
+              onClick={() => setIsTransferModalOpen(true)}
+              className="w-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center"
+            >
+              <ArrowRightLeft size={16} />
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* When category is selected, ONLY show the chart detail */}
+      {selectedCategory?.name && (
+        <CategoryChart onCategorySelect={(name) => setSelectedCategory(name ? { name, type: selectedCategory.type } : null)} />
+      )}
 
       <AddTransactionModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
       <TransferModal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} />
