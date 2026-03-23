@@ -1,7 +1,8 @@
 'use client';
 
+import { motion } from "framer-motion";
 import { useRecentTransactions, useAccounts } from "@/hooks/useFirestore";
-import { TrendingUp, TrendingDown, ArrowRightLeft, Wallet, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowRightLeft, Wallet, PiggyBank, Target, Sparkles } from "lucide-react";
 import { useMemo } from "react";
 
 export default function MonthlySummary() {
@@ -27,65 +28,111 @@ export default function MonthlySummary() {
 
     const totalBalance = accounts.reduce((acc, a) => acc + (a.saldo || 0), 0);
     const prevMonthBalance = totalBalance - income + expense;
+    const savings = income - expense;
 
-    return { income, expense, totalBalance, prevMonthBalance };
+    return { income, expense, totalBalance, prevMonthBalance, savings };
   }, [transactions, accounts]);
 
   const monthName = new Date().toLocaleDateString('es-ES', { month: 'long' }).toUpperCase();
 
+  const cards = [
+    {
+      title: 'Traslado Mes',
+      value: stats.prevMonthBalance,
+      icon: ArrowRightLeft,
+      gradient: 'from-gray-500 to-slate-600',
+      delay: 0,
+      color: 'text-gray-400'
+    },
+    {
+      title: 'Total Disponible',
+      value: stats.totalBalance,
+      icon: Wallet,
+      gradient: 'from-primary via-purple-500 to-pink-500',
+      delay: 0.1,
+      color: 'text-primary',
+      glow: true
+    },
+    {
+      title: 'Ahorro del Mes',
+      value: stats.savings,
+      icon: PiggyBank,
+      gradient: stats.savings >= 0 ? 'from-green-500 to-emerald-600' : 'from-red-500 to-rose-600',
+      delay: 0.2,
+      color: stats.savings >= 0 ? 'text-green-500' : 'text-red-500'
+    },
+    {
+      title: 'Meta Diaria',
+      value: (stats.savings / 30).toFixed(2),
+      icon: Target,
+      gradient: 'from-amber-500 to-orange-600',
+      delay: 0.3,
+      color: 'text-amber-500',
+      prefix: '$',
+      suffix: '/día'
+    }
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4">
-      {/* Saldo Inicial (Traslado) */}
-      <div className="glass p-6 rounded-[2rem] border-white/5 relative overflow-hidden group">
-        <div className="absolute -right-4 -top-4 opacity-5 group-hover:scale-110 transition-transform">
-          <Calendar size={120} />
-        </div>
-        <div className="space-y-1 relative">
-          <div className="text-[10px] font-black opacity-40 uppercase tracking-widest italic flex items-center gap-2">
-            <ArrowRightLeft size={12} /> TRASLADO MES ANTERIOR
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {cards.map((card, index) => (
+        <motion.div
+          key={card.title}
+          initial={{ opacity: 0, y: 30, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ delay: card.delay, duration: 0.5 }}
+          whileHover={{ y: -5, scale: 1.02 }}
+          className={`relative overflow-hidden rounded-[1.5rem] p-5 ${
+            card.glow 
+              ? 'bg-gradient-to-br ' + card.gradient + ' shadow-2xl shadow-primary/30' 
+              : 'bg-gradient-to-br ' + card.gradient
+          }`}
+        >
+          {/* Background effects */}
+          <div className="absolute inset-0 bg-black/5" />
+          <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-20 blur-2xl ${
+            card.glow ? 'bg-white' : 'bg-white/30'
+          }`} />
+          
+          {/* Animated border for main card */}
+          {card.glow && (
+            <motion.div 
+              className="absolute inset-0 border-2 border-white/20 rounded-[1.5rem]"
+              animate={{ opacity: [0.2, 0.5, 0.2] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            />
+          )}
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <div className={`w-10 h-10 rounded-xl ${card.glow ? 'bg-white/20' : 'bg-white/10'} flex items-center justify-center`}>
+                <card.icon size={18} className={card.glow ? 'text-white' : card.color} />
+              </div>
+              {card.glow && (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                  className="w-6 h-6"
+                >
+                  <Sparkles size={24} className="text-white/50" />
+                </motion.div>
+              )}
+            </div>
+            
+            <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${card.glow ? 'text-white/60' : 'opacity-60'}`}>
+              {card.title}
+            </p>
+            
+            <p className={`text-2xl font-black italic tracking-tight ${card.glow ? 'text-white' : ''}`}>
+              {card.prefix || ''}${Math.abs(Number(card.value)).toLocaleString('es-ES', { minimumFractionDigits: 2 })}{card.suffix || ''}
+            </p>
+            
+            <p className={`text-[9px] font-bold mt-1 ${card.glow ? 'text-white/40' : 'opacity-40'}`}>
+              {monthName}
+            </p>
           </div>
-          <p className="text-3xl font-black italic tracking-tighter text-foreground/80">
-            ${stats.prevMonthBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-      </div>
-
-      {/* Saldo Actual */}
-      <div className="glass p-6 rounded-[2rem] border-primary/20 bg-primary/5 relative overflow-hidden group shadow-2xl shadow-primary/10">
-        <div className="absolute -right-4 -top-4 opacity-10 group-hover:rotate-12 transition-transform text-primary">
-          <Wallet size={120} />
-        </div>
-        <div className="space-y-1 relative">
-          <div className="text-[10px] font-black text-primary uppercase tracking-[0.3em] italic flex items-center gap-2">
-            DISPONIBLE TOTAL <span className="w-1 h-1 bg-primary rounded-full animate-pulse" />
-          </div>
-          <p className="text-4xl font-black italic tracking-tighter text-primary drop-shadow-sm">
-            ${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-      </div>
-
-      {/* Ingresos vs Gastos del Mes */}
-      <div className="md:col-span-2 flex gap-4">
-        <div className="flex-1 glass p-5 rounded-3xl border-green-500/10 flex items-center gap-4">
-           <div className="bg-green-500/20 p-3 rounded-2xl text-green-500">
-             <TrendingUp size={24} />
-           </div>
-           <div>
-             <div className="text-[9px] font-black opacity-40 uppercase italic tracking-tighter">INGRESOS {monthName}</div>
-             <p className="text-xl font-black italic text-green-500">+${stats.income.toFixed(2)}</p>
-           </div>
-        </div>
-        <div className="flex-1 glass p-5 rounded-3xl border-red-500/10 flex items-center gap-4">
-           <div className="bg-red-500/20 p-3 rounded-2xl text-red-500">
-             <TrendingDown size={24} />
-           </div>
-           <div>
-             <div className="text-[9px] font-black opacity-40 uppercase italic tracking-tighter">GASTOS {monthName}</div>
-             <p className="text-xl font-black italic text-red-500">-${stats.expense.toFixed(2)}</p>
-           </div>
-        </div>
-      </div>
+        </motion.div>
+      ))}
     </div>
   );
 }

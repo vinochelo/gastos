@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, Variants } from "framer-motion";
 import { useAccounts, useRecentTransactions, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, User, LogOut, Trash2, Wallet, Sparkles } from "lucide-react";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, User, LogOut, Trash2, Wallet, Sparkles, Zap, Receipt } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import CategoryChart from "@/components/CategoryChart";
@@ -12,21 +12,23 @@ import { auth, db } from "@/lib/firebase";
 import { deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 }
   }
 };
 
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 30 },
+  hidden: { opacity: 0, y: 40, scale: 0.95 },
   visible: { 
     opacity: 1, 
     y: 0,
-    transition: { duration: 0.5, ease: "easeOut" }
+    scale: 1,
+    transition: { duration: 0.6, ease: "easeOut" }
   }
 };
 
@@ -38,6 +40,23 @@ export default function Dashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  const stats = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    let income = 0, expense = 0;
+    transactions.forEach(tx => {
+      const ts = tx.timestamp;
+      const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
+      if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
+        if (tx.tipo === 'ingreso') income += tx.monto;
+        else if (tx.tipo === 'gasto') expense += tx.monto;
+      }
+    });
+    const totalBalance = accounts.reduce((acc, a) => acc + (a.saldo || 0), 0);
+    return { income, expense, totalBalance, savings: income - expense };
+  }, [transactions, accounts]);
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center">
@@ -59,17 +78,13 @@ export default function Dashboard() {
     try {
       const mult = tx.tipo === 'ingreso' ? -1 : 1;
       if (tx.accountId) {
-        await updateDoc(doc(db, "accounts", tx.accountId), {
-          saldo: increment(mult * tx.monto)
-        });
+        await updateDoc(doc(db, "accounts", tx.accountId), { saldo: increment(mult * tx.monto) });
       } else if (tx.tipo === 'transferencia' && tx.fromId && tx.toId) {
         await updateDoc(doc(db, "accounts", tx.fromId), { saldo: increment(tx.monto) });
         await updateDoc(doc(db, "accounts", tx.toId), { saldo: increment(-tx.monto) });
       }
       await deleteDoc(doc(db, "transactions", tx.id));
-    } catch {
-      alert("Error al eliminar.");
-    }
+    } catch { alert("Error al eliminar."); }
   };
 
   return (
@@ -77,211 +92,318 @@ export default function Dashboard() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-12 pb-28"
+      className="space-y-8 pb-32"
     >
-      {/* Header */}
-      <motion.header 
-        variants={itemVariants}
-        className="flex justify-between items-center py-6"
-      >
-        <div className="space-y-2">
-          <motion.h1 
-            className="text-5xl font-black italic tracking-tighter bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent"
-            initial={{ x: -50, opacity: 0 }}
+      {/* Hero Section */}
+      <motion.header variants={itemVariants} className="relative">
+        <div className="relative z-10">
+          <motion.div
+            initial={{ x: -30, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+            transition={{ duration: 0.8 }}
+            className="flex items-center gap-3 mb-2"
           >
-            SISTEMA CONTROL
-          </motion.h1>
-          <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.4em]">Ecosistema Financiero v2.5</p>
-        </div>
-        <div className="relative">
-          <motion.button 
-            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-            className="w-14 h-14 glass rounded-3xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all text-primary shadow-2xl relative group overflow-hidden"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <div className="absolute inset-0 bg-primary/10 group-hover:bg-primary/20 transition-all" />
-            <User size={28} className="relative z-10" />
-          </motion.button>
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-primary/30">
+              <Zap size={20} className="text-white" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Gestor.AI</span>
+          </motion.div>
           
-          {isUserMenuOpen && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -10 }}
-              className="absolute right-0 top-16 w-56 glass border-white/5 rounded-[2rem] p-4 shadow-2xl z-[150]"
-            >
-              <p className="text-[10px] font-black opacity-30 px-4 mb-2 uppercase italic tracking-widest">Cuenta Actual</p>
-              <div className="p-4 rounded-2xl bg-foreground/5 mb-3">
-                <p className="text-xs font-black italic">{auth.currentUser?.email}</p>
-              </div>
-              <button 
-                onClick={() => logout()}
-                className="w-full flex items-center justify-between p-4 rounded-[1.5rem] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all group"
-              >
-                <span className="font-black italic text-xs">CERRAR SESIÓN</span>
-                <LogOut size={16} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-            </motion.div>
-          )}
+          <motion.h1 
+            className="text-6xl md:text-7xl font-black italic tracking-tighter leading-none"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
+            <span className="bg-gradient-to-r from-foreground via-foreground/90 to-foreground/60 bg-clip-text text-transparent">
+              TU DINERO
+            </span>
+            <br />
+            <span className="bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
+              BAJO CONTROL
+            </span>
+          </motion.h1>
         </div>
+        
+        {/* Decorative elements */}
+        <motion.div 
+          className="absolute -right-10 top-0 w-40 h-40 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+          transition={{ duration: 4, repeat: Infinity }}
+        />
+        <motion.div 
+          className="absolute -right-5 top-20 w-20 h-20 bg-gradient-to-br from-pink-500/30 to-pink-500/10 rounded-full blur-2xl"
+          animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 3, repeat: Infinity, delay: 1 }}
+        />
       </motion.header>
 
-      {/* Resumen Mensual */}
-      <motion.div variants={itemVariants}>
-        <MonthlySummary />
+      {/* Main Balance Card */}
+      <motion.div variants={itemVariants} className="relative">
+        <div className="relative overflow-hidden rounded-[2.5rem] p-8 md:p-10">
+          {/* Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-purple-600 to-pink-600" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2" />
+          
+          {/* Content */}
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <Wallet size={24} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">Balance Total</p>
+                  <p className="text-white/40 text-xs font-bold">{new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</p>
+                </div>
+              </div>
+              <motion.button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <User size={20} className="text-white" />
+              </motion.button>
+            </div>
+            
+            <motion.p 
+              className="text-5xl md:text-7xl font-black italic text-white tracking-tighter mb-8"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              ${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+            </motion.p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <motion.div 
+                className="bg-white/10 backdrop-blur-sm rounded-2xl p-4"
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-xl bg-green-500/30 flex items-center justify-center">
+                    <TrendingUp size={16} className="text-green-300" />
+                  </div>
+                  <span className="text-white/60 text-[10px] font-bold uppercase">Ingresos</span>
+                </div>
+                <p className="text-2xl font-black italic text-green-300">+${stats.income.toFixed(2)}</p>
+              </motion.div>
+              
+              <motion.div 
+                className="bg-white/10 backdrop-blur-sm rounded-2xl p-4"
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-xl bg-red-500/30 flex items-center justify-center">
+                    <TrendingDown size={16} className="text-red-300" />
+                  </div>
+                  <span className="text-white/60 text-[10px] font-bold uppercase">Gastos</span>
+                </div>
+                <p className="text-2xl font-black italic text-red-300">-${stats.expense.toFixed(2)}</p>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+        
+        {isUserMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute right-0 top-full mt-4 w-64 glass rounded-[2rem] p-5 shadow-2xl z-50"
+          >
+            <p className="text-[10px] font-black opacity-30 px-3 mb-3 uppercase italic tracking-widest">Cuenta</p>
+            <div className="p-4 rounded-2xl bg-foreground/5 mb-4">
+              <p className="text-xs font-black italic">{auth.currentUser?.email}</p>
+            </div>
+            <button 
+              onClick={() => logout()}
+              className="w-full flex items-center justify-between p-4 rounded-2xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all font-black italic text-xs uppercase"
+            >
+              Cerrar Sesión <LogOut size={16} />
+            </button>
+          </motion.div>
+        )}
       </motion.div>
 
-      {/* Gráfico */}
+      {/* Quick Actions */}
+      <motion.div variants={itemVariants} className="grid grid-cols-3 gap-4">
+        {[
+          { icon: Plus, label: 'Registro', color: 'from-primary to-purple-600', shadow: 'shadow-primary/30', delay: 0 },
+          { icon: ArrowRightLeft, label: 'Transferir', color: 'from-indigo-500 to-purple-600', shadow: 'shadow-indigo-500/30', delay: 1 },
+          { icon: Receipt, label: 'Historial', color: 'from-pink-500 to-rose-600', shadow: 'shadow-pink-500/30', delay: 2 },
+        ].map((action, i) => (
+          <motion.button
+            key={action.label}
+            onClick={() => i === 0 ? setIsAddModalOpen(true) : i === 1 ? setIsTransferModalOpen(true) : router.push('/transacciones')}
+            className={`bg-gradient-to-br ${action.color} rounded-[2rem] p-6 flex flex-col items-center gap-3 shadow-xl ${action.shadow} relative overflow-hidden group`}
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1 + i * 0.1 }}
+            whileHover={{ scale: 1.05, y: -5 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-all" />
+            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center relative z-10">
+              <action.icon size={24} className="text-white" />
+            </div>
+            <span className="text-white font-black italic text-xs uppercase tracking-wider relative z-10">{action.label}</span>
+          </motion.button>
+        ))}
+      </motion.div>
+
+      {/* Chart Section */}
       <motion.div variants={itemVariants}>
         <CategoryChart />
       </motion.div>
 
-      {/* Cuentas */}
-      <motion.section variants={itemVariants} className="space-y-6">
-        <div className="flex items-center justify-between px-2">
-           <h2 className="text-xl font-black italic uppercase tracking-tight flex items-center gap-3">
-             <motion.div 
-               className="w-2 h-6 bg-gradient-to-b from-primary to-purple-500 rounded-full"
-               animate={{ scaleY: [1, 1.2, 1] }}
-               transition={{ duration: 2, repeat: Infinity }}
-             />
-             Tus Cuentas
-           </h2>
+      {/* Accounts Grid */}
+      <motion.section variants={itemVariants} className="space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-8 bg-gradient-to-b from-primary to-purple-500 rounded-full" />
+          <h2 className="text-2xl font-black italic tracking-tight">Tus Cuentas</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {accounts.map((acc, index) => (
             <motion.div
               key={acc.id}
-              variants={itemVariants}
-              custom={index}
-              whileHover={{ scale: 1.03, y: -8, transition: { duration: 0.3 } }}
-              className="glass group relative overflow-hidden p-8 rounded-[3rem] shadow-2xl border-white/5 bg-gradient-to-br from-transparent to-primary/5 cursor-pointer"
+              className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-[2rem] p-6 shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -8, scale: 1.02 }}
             >
-              <div className="absolute -right-8 -top-8 w-32 h-32 bg-primary/5 blur-3xl rounded-full group-hover:bg-primary/15 transition-all animate-pulse" />
-              <div className="space-y-2 relative">
-                <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.2em] italic">{acc.tipo}</p>
-                <h3 className="text-2xl font-black italic tracking-tighter uppercase">{acc.nombre}</h3>
-                <p className="text-4xl font-black italic tracking-tighter bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent group-hover:drop-shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all">
-                  ${acc.saldo.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+              {/* Top gradient bar */}
+              <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${
+                index % 3 === 0 ? 'from-blue-500 to-cyan-500' :
+                index % 3 === 1 ? 'from-purple-500 to-pink-500' :
+                'from-green-500 to-emerald-500'
+              }`} />
+              
+              {/* Background glow */}
+              <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full opacity-20 blur-2xl ${
+                index % 3 === 0 ? 'bg-blue-500' :
+                index % 3 === 1 ? 'bg-purple-500' :
+                'bg-green-500'
+              } group-hover:opacity-40 transition-opacity`} />
+              
+              <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{acc.tipo}</span>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    index % 3 === 0 ? 'bg-blue-50 dark:bg-blue-950 text-blue-500' :
+                    index % 3 === 1 ? 'bg-purple-50 dark:bg-purple-950 text-purple-500' :
+                    'bg-green-50 dark:bg-green-950 text-green-500'
+                  }`}>
+                    <Wallet size={18} />
+                  </div>
+                </div>
+                
+                <h3 className="text-xl font-black italic uppercase tracking-tight mb-1">{acc.nombre}</h3>
+                
+                <p className={`text-3xl font-black italic tracking-tight ${
+                  acc.saldo >= 0 ? 'text-foreground' : 'text-red-500'
+                }`}>
+                  ${Math.abs(acc.saldo).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                 </p>
               </div>
-              <motion.div 
-                className="absolute bottom-4 right-4 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                whileHover={{ rotate: 180 }}
-              >
-                <Wallet size={16} className="text-primary" />
-              </motion.div>
             </motion.div>
           ))}
-          <motion.button 
-            onClick={() => setIsTransferModalOpen(true)}
-            className="group flex flex-col items-center justify-center p-8 border-2 border-dashed border-primary/20 rounded-[3rem] hover:border-primary/40 hover:bg-primary/5 transition-all space-y-4"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <motion.div 
-              className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary"
-              whileHover={{ rotate: 180 }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
-            >
-               <ArrowRightLeft size={32} />
-            </motion.div>
-            <span className="font-black italic text-xs opacity-40 uppercase tracking-widest">Realizar Transferencia</span>
-          </motion.button>
         </div>
       </motion.section>
 
-      {/* Acciones Rápidas */}
-      <motion.div 
-        className="fixed bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 z-50"
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.5, duration: 0.5 }}
-      >
-        <motion.button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="bg-gradient-to-r from-primary to-purple-600 text-white p-6 px-12 rounded-[2.5rem] shadow-[0_20px_50px_rgba(139,92,246,0.4)] flex items-center gap-4 hover:scale-110 active:scale-95 transition-all border border-white/20 group relative overflow-hidden"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-all" />
-          <motion.div 
-            className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"
-            animate={{ rotate: 0 }}
-            whileHover={{ rotate: 90 }}
+      {/* Recent Transactions */}
+      <motion.section variants={itemVariants} className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full" />
+            <h2 className="text-2xl font-black italic tracking-tight">Actividad Reciente</h2>
+          </div>
+          <button 
+            onClick={() => router.push('/transacciones')}
+            className="text-[10px] font-black uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity"
           >
-             <Plus size={20} className="text-white" />
-          </motion.div>
-          <span className="font-black italic uppercase tracking-tighter text-lg relative z-10">REGISTRAR</span>
-          <Sparkles size={20} className="opacity-50" />
-        </motion.button>
-      </motion.div>
-
-      {/* Actividad Reciente */}
-      <motion.section variants={itemVariants} className="space-y-6">
-        <div className="flex items-center justify-between px-2">
-           <h2 className="text-xl font-black italic uppercase tracking-tight flex items-center gap-3">
-             <motion.div 
-               className="w-2 h-6 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"
-               animate={{ scaleY: [1, 1.2, 1] }}
-               transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-             />
-             Actividad Reciente
-           </h2>
+            Ver todo →
+          </button>
         </div>
+        
         <div className="space-y-4">
-          {transactions.map((tx, index) => (
+          {transactions.length === 0 ? (
             <motion.div 
-              key={tx.id} 
-              className="glass p-6 rounded-3xl flex items-center justify-between border-white/5 hover:translate-x-4 transition-all cursor-pointer group"
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ x: 8 }}
+              className="glass rounded-[2rem] p-12 flex flex-col items-center justify-center text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
             >
-              <div className="flex items-center gap-5">
-                <motion.div 
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${
-                    tx.tipo === 'ingreso' ? 'bg-gradient-to-br from-green-400 to-emerald-500 text-white' : 
-                    tx.tipo === 'transferencia' ? 'bg-gradient-to-br from-indigo-400 to-purple-500 text-white' : 
-                    'bg-gradient-to-br from-red-400 to-rose-500 text-white'
-                  }`}
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                >
-                  {tx.tipo === 'ingreso' ? <TrendingUp size={24} /> : 
-                   tx.tipo === 'transferencia' ? <ArrowRightLeft size={24} /> : 
-                   <TrendingDown size={24} />}
-                </motion.div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black p-1 px-2 rounded-lg bg-foreground/5 opacity-40 uppercase tracking-tighter italic">{tx.categoria}</span>
-                    <span className="text-[10px] opacity-20 font-black italic">{tx.fuente}</span>
-                  </div>
-                  <h4 className="font-black italic uppercase text-lg tracking-tight leading-tight">{tx.descripcion || tx.categoria}</h4>
-                </div>
+              <div className="w-20 h-20 rounded-full bg-foreground/5 flex items-center justify-center mb-4">
+                <Receipt size={32} className="opacity-20" />
               </div>
-              <div className="text-right flex items-center gap-4">
-                <div>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-30">Sin transacciones aún</p>
+              <p className="text-[10px] opacity-20 mt-1">Comienza agregando tu primer gasto</p>
+            </motion.div>
+          ) : (
+            transactions.map((tx, index) => (
+              <motion.div 
+                key={tx.id} 
+                className="group relative bg-white dark:bg-gray-900 rounded-[1.5rem] p-5 shadow-lg border border-gray-100 dark:border-gray-800 flex items-center justify-between cursor-pointer overflow-hidden"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.08 }}
+                whileHover={{ x: 8, scale: 1.01 }}
+              >
+                {/* Left accent */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                  tx.tipo === 'ingreso' ? 'bg-gradient-to-b from-green-400 to-emerald-500' :
+                  tx.tipo === 'transferencia' ? 'bg-gradient-to-b from-indigo-400 to-purple-500' :
+                  'bg-gradient-to-b from-red-400 to-rose-500'
+                }`} />
+                
+                <div className="flex items-center gap-4 pl-3">
+                  <motion.div 
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${
+                      tx.tipo === 'ingreso' ? 'bg-gradient-to-br from-green-400 to-emerald-500' :
+                      tx.tipo === 'transferencia' ? 'bg-gradient-to-br from-indigo-400 to-purple-500' :
+                      'bg-gradient-to-br from-red-400 to-rose-500'
+                    }`}
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                  >
+                    {tx.tipo === 'ingreso' ? <TrendingUp size={24} className="text-white" /> : 
+                     tx.tipo === 'transferencia' ? <ArrowRightLeft size={24} className="text-white" /> : 
+                     <TrendingDown size={24} className="text-white" />}
+                  </motion.div>
+                  
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-black p-1.5 px-3 rounded-xl bg-gray-100 dark:bg-gray-800 opacity-60 uppercase tracking-tighter">{tx.categoria}</span>
+                      <span className="text-[9px] opacity-30 font-bold uppercase">{tx.fuente}</span>
+                    </div>
+                    <h4 className="font-black italic uppercase text-base tracking-tight leading-tight">{tx.descripcion || tx.categoria}</h4>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4">
                   <p className={`text-2xl font-black italic tracking-tighter ${
                     tx.tipo === 'ingreso' ? 'text-green-500' : 'text-foreground'
                   }`}>
                     {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toFixed(2)}
                   </p>
+                  <motion.button 
+                    onClick={(e) => { e.stopPropagation(); handleDeleteTx(tx); }}
+                    className="p-3 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-all rounded-xl"
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.8 }}
+                  >
+                    <Trash2 size={18} />
+                  </motion.button>
                 </div>
-                <motion.button 
-                  onClick={() => handleDeleteTx(tx)}
-                  className="p-3 opacity-10 hover:opacity-100 hover:text-red-500 transition-all hover:bg-red-500/5 rounded-xl"
-                  whileHover={{ scale: 1.2 }}
-                  whileTap={{ scale: 0.8 }}
-                >
-                  <Trash2 size={18} />
-                </motion.button>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))
+          )}
         </div>
       </motion.section>
 
