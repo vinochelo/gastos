@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, HelpCircle, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2 } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
@@ -15,24 +15,18 @@ export default function AjustesPage() {
   const [telegramId, setTelegramId] = useState("");
   const [newCategories, setNewCategories] = useState("");
   const [expenseCategories, setExpenseCategories] = useState<string[]>([]);
-  const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [linkingCode, setLinkingCode] = useState<string | null>(null);
   const [telegramLinked, setTelegramLinked] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [codeLoading, setCodeLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [userReady, setUserReady] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const checkMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    setIsMobile(checkMobile);
   }, []);
 
   useEffect(() => {
@@ -53,16 +47,10 @@ export default function AjustesPage() {
               incomeCategories: ["Salario", "Inversion", "Regalo", "Otro"]
             });
           }
-          
-          if (data.incomeCategories?.length) {
-            setIncomeCategories(data.incomeCategories);
-          } else {
-            setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
-          }
         } else {
           setExpenseCategories(DEFAULT_CATEGORIES);
-          setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
         }
+        setUserReady(true);
       } else {
         router.push('/login');
       }
@@ -72,39 +60,40 @@ export default function AjustesPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const generateLinkingCode = useCallback(async () => {
+  const showToast = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const generateLinkingCode = async () => {
     if (!auth.currentUser || codeLoading) return;
     
-    const userId = auth.currentUser.uid;
     setCodeLoading(true);
     
     try {
-      const res = await fetch('/api/linking/generate');
+      const res = await fetch('/api/linking/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: auth.currentUser.uid })
+      });
       const data = await res.json();
+      
       if (data.code) {
         setLinkingCode(data.code);
         showToast("Código generado");
       } else {
-        console.error("Error:", data.error);
+        showToast("Error: " + (data.error || "desconocido"));
       }
     } catch (err) {
-      console.error("Error de conexión:", err);
+      console.error("Error:", err);
+      showToast("Error de conexión");
     } finally {
       setCodeLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    if (!telegramLinked && auth.currentUser && !linkingCode && !codeLoading) {
-      const timer = setTimeout(() => {
-        generateLinkingCode();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [telegramLinked, auth.currentUser, linkingCode, codeLoading, generateLinkingCode]);
-
-  useEffect(() => {
-    if (!telegramLinked && auth.currentUser) {
+    if (!telegramLinked && auth.currentUser && userReady) {
       const interval = setInterval(async () => {
         try {
           const snap = await getDoc(doc(db, "users", auth.currentUser!.uid));
@@ -118,30 +107,19 @@ export default function AjustesPage() {
             }
           }
         } catch (err) {
-          console.error("Error checking telegram:", err);
+          console.error("Error checking:", err);
         }
       }, 3000);
       return () => clearInterval(interval);
     }
-  }, [telegramLinked]);
-
-  useEffect(() => {
-    if (!telegramLinked) {
-      setShowHelp(true);
-    }
-  }, [telegramLinked]);
-
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 3000);
-  };
+  }, [telegramLinked, userReady]);
 
   const copyToClipboard = async () => {
     if (!linkingCode) return;
     const text = `/vincular ${linkingCode}`;
     try {
       await navigator.clipboard.writeText(text);
-      showToast("Código copiado al portapapeles");
+      showToast("Código copiado");
     } catch {
       showToast("Error al copiar");
     }
@@ -160,7 +138,7 @@ export default function AjustesPage() {
 
   const addCategories = async () => {
     if (!newCategories.trim() || !auth.currentUser) return;
-    const newCats = newCategories.split(',').map(c => c.trim()).filter(c => c.length > 0);
+    const newCats = newCategories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
     if (newCats.length === 0) return;
     
     const updated = [...expenseCategories];
@@ -175,7 +153,7 @@ export default function AjustesPage() {
       expenseCategories: updated
     });
     setNewCategories("");
-    showToast("Categoría(s) añadida(s)");
+    showToast("Categoría añadida");
   };
 
   const removeCategory = async (cat: string) => {
@@ -207,20 +185,18 @@ export default function AjustesPage() {
 
   if (authLoading) return (
     <div className="flex h-screen items-center justify-center">
-      <div className="w-6 h-6 rounded-full bg-gray-200 animate-pulse" />
+      <Loader2 size={24} className="animate-spin text-indigo-500" />
     </div>
   );
 
   return (
     <div className="space-y-6 pb-28">
-      {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg text-sm font-medium animate-pulse">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg text-sm font-medium">
           {toast}
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center gap-3">
         <button 
           onClick={() => router.push('/')}
@@ -234,7 +210,6 @@ export default function AjustesPage() {
         </div>
       </div>
 
-      {/* Help Banner */}
       {!telegramLinked && (
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white">
           <div className="flex items-start gap-3">
@@ -243,30 +218,18 @@ export default function AjustesPage() {
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-base mb-1">Conecta Telegram</h3>
-              <p className="text-sm opacity-90 mb-3">
+              <p className="text-sm opacity-90 mb-2">
                 Registra gastos con tu voz. Di "gasté 50 en comida" y el bot lo guarda.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-xs opacity-80">
                 {isMobile ? <Smartphone size={14} /> : <Monitor size={14} />}
-                <span className="text-xs opacity-80">{isMobile ? "Móvil detectado" : "PC detectada"}</span>
+                <span>{isMobile ? "Móvil" : "PC"}</span>
               </div>
             </div>
           </div>
-          
-          {showHelp && (
-            <div className="mt-4 pt-4 border-t border-white/20 text-sm space-y-2">
-              <p className="font-semibold">Cómo configurar:</p>
-              <ol className="space-y-1 opacity-90">
-                <li>1. Genera tu código de vinculación</li>
-                <li>2. Presiona "Ir al Bot" para abrir Telegram</li>
-                <li>3. El comando estará listo, solo envíalo</li>
-              </ol>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Telegram Section */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -289,7 +252,6 @@ export default function AjustesPage() {
           </div>
         ) : linkingCode ? (
           <div className="space-y-4">
-            {/* Code Display */}
             <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-xl p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wider opacity-50 mb-2">Comando listo</p>
               <div className="bg-gray-900 dark:bg-gray-800 rounded-lg px-4 py-3 inline-block">
@@ -297,14 +259,13 @@ export default function AjustesPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex gap-2">
               <button 
                 onClick={copyToClipboard}
                 className="flex-1 bg-gray-100 dark:bg-gray-700 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 <Copy size={16} />
-                Copiar código
+                Copiar
               </button>
               <button 
                 onClick={openTelegram}
@@ -315,15 +276,11 @@ export default function AjustesPage() {
               </button>
             </div>
 
-            {/* Info Box */}
             <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 text-xs">
               <p className="font-semibold mb-2 text-blue-700 dark:text-blue-400">⏰ Expira en 5 minutos</p>
-              <p className="opacity-70">
-                Presiona "Ir al Bot" para abrir Telegram directamente con el comando, o copia y pega manualmente.
-              </p>
+              <p className="opacity-70">Presiona "Ir al Bot" para abrir Telegram con el comando.</p>
             </div>
 
-            {/* Generate New Code */}
             <button 
               onClick={generateLinkingCode}
               disabled={codeLoading}
@@ -343,14 +300,26 @@ export default function AjustesPage() {
             </button>
           </div>
         ) : (
-          <div className="text-center py-6">
-            <Loader2 size={24} className="animate-spin mx-auto mb-3 text-indigo-500" />
-            <p className="text-sm opacity-70">Generando código...</p>
-          </div>
+          <button 
+            onClick={generateLinkingCode}
+            disabled={codeLoading}
+            className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-colors"
+          >
+            {codeLoading ? (
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                Generando código...
+              </>
+            ) : (
+              <>
+                <MessageCircle size={20} />
+                Generar código de vinculación
+              </>
+            )}
+          </button>
         )}
       </div>
 
-      {/* Categories */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold">Categorías de Gastos</h2>
@@ -393,7 +362,6 @@ export default function AjustesPage() {
         </div>
       </div>
 
-      {/* Bot Instructions */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
         <h2 className="text-base font-semibold mb-4">Qué puede hacer el bot</h2>
         <div className="text-sm space-y-2 opacity-70">
@@ -401,12 +369,9 @@ export default function AjustesPage() {
           <p>• <strong>"recibí 500"</strong> - Registrar ingreso</p>
           <p>• <strong>"mi saldo"</strong> - Ver saldos</p>
           <p>• <strong>"cuánto gasté en taxi"</strong> - Gastos por categoría</p>
-          <p>• <strong>"borra el gasto de 100"</strong> - Eliminar transacción</p>
-          <p>• <strong>"ayer gasté 30"</strong> - Con fecha específica</p>
         </div>
       </div>
 
-      {/* User Info */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
         <p className="text-xs opacity-40 mb-2">Cuenta</p>
         <p className="text-sm font-medium mb-3">{auth.currentUser?.email}</p>
