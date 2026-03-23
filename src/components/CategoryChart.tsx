@@ -30,16 +30,15 @@ export default function CategoryChart() {
         }
         return acc;
       }, [])
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
+      .sort((a, b) => b.value - a.value);
   }, [transactions, activeType]);
 
   const total = categoryData.reduce((sum, item) => sum + item.value, 0);
 
   if (transactions.length === 0 || categoryData.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 text-center border border-gray-100 dark:border-gray-700">
-        <p className="text-sm opacity-40">Sin datos de {activeType}s</p>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-gray-700">
+        <p className="text-base opacity-40">Sin datos de {activeType}s</p>
       </div>
     );
   }
@@ -47,16 +46,16 @@ export default function CategoryChart() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-          <h3 className="text-lg font-bold tracking-tight">Distribución</h3>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-8 bg-indigo-500 rounded-full" />
+          <h3 className="text-xl font-bold tracking-tight">Distribución</h3>
         </div>
         
-        <div className="flex bg-gray-100 dark:bg-gray-700 p-0.5 rounded-lg">
+        <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
           <button 
             onClick={() => setActiveType('gasto')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
               activeType === 'gasto' ? 'bg-white dark:bg-gray-600 shadow-sm' : ''
             }`}
           >
@@ -64,7 +63,7 @@ export default function CategoryChart() {
           </button>
           <button 
             onClick={() => setActiveType('ingreso')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
               activeType === 'ingreso' ? 'bg-white dark:bg-gray-600 shadow-sm' : ''
             }`}
           >
@@ -73,21 +72,21 @@ export default function CategoryChart() {
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="flex items-center gap-8">
-        <div className="relative h-44 w-44 flex-shrink-0">
+      {/* Chart grande */}
+      <div className="flex items-center gap-10">
+        <div className="relative h-64 w-64 flex-shrink-0">
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-            <p className="text-xs font-medium opacity-40">Total</p>
-            <p className="text-lg font-bold">${(total / 1000).toFixed(1)}k</p>
+            <p className="text-xs font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
+            <p className="text-2xl font-bold">${(total / 1000).toFixed(1)}k</p>
           </div>
           
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={categoryData}
-                innerRadius={50}
-                outerRadius={75}
-                paddingAngle={3}
+                innerRadius={55}
+                outerRadius={100}
+                paddingAngle={2}
                 dataKey="value"
               >
                 {categoryData.map((_, index: number) => (
@@ -110,18 +109,18 @@ export default function CategoryChart() {
             return (
               <div 
                 key={entry.name}
-                className="flex items-center justify-between py-1.5 border-b border-gray-50 dark:border-gray-700 last:border-0"
+                className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-700/50 last:border-0"
               >
                 <div className="flex items-center gap-3">
                   <div 
-                    className="w-3 h-3 rounded-full"
+                    className="w-3.5 h-3.5 rounded-full"
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
                   <span className="text-sm font-medium">{entry.name}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold opacity-60">${entry.value.toLocaleString('es-ES', { minimumFractionDigits: 0 })}</span>
-                  <span className="text-sm font-bold w-10 text-right">{percentage}%</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium opacity-60">${entry.value.toLocaleString('es-ES', { minimumFractionDigits: 0 })}</span>
+                  <span className="text-base font-bold w-12 text-right">{percentage}%</span>
                 </div>
               </div>
             );
