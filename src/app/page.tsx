@@ -177,9 +177,9 @@ export default function Dashboard() {
 
       <AddTransactionModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
       <TransferModal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} />
-      {editingTx && (
+      {editingTx && editingTx.id && (
         <EditTransactionModal 
-          isOpen={!!editingTx} 
+          isOpen={true} 
           onClose={() => setEditingTx(null)} 
           transaction={editingTx} 
         />
