@@ -152,8 +152,48 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           const totalGastos = Object.values(porCategoria).reduce((a, b) => a + b, 0);
           msg += `\n💰 TOTAL: $${totalGastos.toFixed(2)}`;
           ctx.reply(msg);
+          return;
+      } else if (item.tipo === "reverso") {
+        const montoReverso = Math.abs(item.monto);
+        const cuentaBuscada = item.cuenta?.toLowerCase();
+        
+        const recentSnap = await adminDb.collection("transactions")
+          .where("userId", "==", userId)
+          .orderBy("timestamp", "desc")
+          .limit(20)
+          .get();
+        
+        let matchFound = false;
+        
+        for (const doc of recentSnap.docs) {
+          const data = doc.data();
+          const matchMonto = Math.abs(data.monto) === montoReverso;
+          const matchCuenta = !cuentaBuscada || 
+            (data.accountId && accountsSnap.docs.some(a => a.id === data.accountId && a.data().nombre.toLowerCase().includes(cuentaBuscada));
+          
+          if (matchMonto && matchCuenta) {
+            const isGasto = data.tipo === "gasto";
+            const multReverso = isGasto ? 1 : -1;
+            
+            if (data.accountId) {
+              const accountDocMatch = accountsSnap.docs.find(a => a.id === data.accountId);
+              if (accountDocMatch) {
+                const currentSaldo = accountDocMatch.data().saldo || 0;
+                const newSaldo = currentSaldo + (multReverso * montoReverso);
+                await adminDb.collection("accounts").doc(data.accountId).update({ saldo: newSaldo });
+                results.push(`↩️ REVERSADO: $${montoReverso} en ${accountDocMatch.data().nombre} (saldo: $${newSaldo.toFixed(2)})`);
+              }
+            }
+            
+            await adminDb.collection("transactions").doc(doc.id).delete();
+            matchFound = true;
+            break;
+          }
         }
-        return;
+        
+        if (!matchFound) {
+          results.push(`⚠️ No encontré transacción de $${montoReverso} para revertir.`);
+        }
       } else {
         const accountDoc = accountsSnap.docs.find(d => 
           d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||

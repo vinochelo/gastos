@@ -37,6 +37,9 @@ export async function parseTransaction(text: string, accountNames: string[], use
     5. CONSULTAR GASTOS POR CATEGORÍA: Si el usuario pregunta cuánto gastó en algo específico, ej: "cuánto gasté en transporte", "gastos en comida", "cuánto pagué en servicios", "gastos del mes en salud".
        - Detecta la categoría mentioned y devuelve tipo: "consulta_gasto_categoria" con la categoría.
        - Soporta palabras como "gasté", "gastos", "pagué", "pago", "cuánto", "cuánta" + nombre de categoría.
+    6. REVERTIR TRANSACCIÓN: Si el usuario quiere cancelar, borrar o revertir una transacción. Ej: "borra el gasto de 50", "cancela la compra de 200", "revierte el ingreso de 1000".
+       - Detecta el monto a revertir y devuelve tipo: "reverso" con el monto y la cuenta.
+       - La cuenta es opcional: si no la especifica, busca en todas las cuentas la transacción más reciente con ese monto.
 
     REGLAS DE CLASIFICACIÓN:
     - "Golosinas": Pastel, dulces, snacks.
@@ -58,7 +61,7 @@ export async function parseTransaction(text: string, accountNames: string[], use
           "fromCuenta": string,
           "toCuenta": string,
           "descripcion": string,
-          "tipo": "gasto" | "ingreso" | "transferencia" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria",
+          "tipo": "gasto" | "ingreso" | "transferencia" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria" | "reverso",
           "fecha": "YYYY-MM-DD" (calculada según el texto, defecto hoy)
         }
       ]
