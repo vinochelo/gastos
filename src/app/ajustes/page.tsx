@@ -126,7 +126,7 @@ export default function AjustesPage() {
   };
 
   const getTelegramLink = () => {
-    return `https://t.me/${TELEGRAM_BOT_USERNAME}`;
+    return `https://web.telegram.org/a/#7994184516`;
   };
 
   const addCategories = async () => {
