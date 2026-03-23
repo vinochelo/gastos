@@ -255,7 +255,24 @@ bot.command("vincular", async (ctx) => {
   const code = args[0];
 
   if (!code) {
-    return ctx.reply("📋 Uso: /vincular [código]\n\nGenera un código desde la app web primero.");
+    const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+    
+    try {
+      await adminDb.collection("linkingCodes").doc(generatedCode).set({
+        userId: "pending",
+        telegramId: ctx.from.id.toString(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+        used: false
+      });
+      
+      return ctx.reply(`📋 Para vincular, necesitas ir a la app web:\n\n1. Abre: https://gastos-delta-pearl.vercel.app/ajustes\n2. Genera tu código de vinculación\n3. Usa: /vincular [código]\n\n⏰ El código de la web expira en 5 minutos.`);
+    } catch (error) {
+      console.error(error);
+      return ctx.reply("❌ Error. Intenta de nuevo.");
+    }
   }
 
   try {

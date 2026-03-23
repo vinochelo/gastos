@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Send, Bot, Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, ExternalLink, Check, Link } from "lucide-react";
+import { Send, Bot, Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, ExternalLink, Check, Link, HelpCircle, MessageCircle } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
 
 const TELEGRAM_BOT_USERNAME = "controldegastosvvBot";
+const TELEGRAM_BOT_LINK = `https://t.me/${TELEGRAM_BOT_USERNAME}`;
 
 export default function AjustesPage() {
   const [telegramId, setTelegramId] = useState("");
@@ -17,12 +18,12 @@ export default function AjustesPage() {
   const [expenseCategories, setExpenseCategories] = useState<string[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [linkingCode, setLinkingCode] = useState<string | null>(null);
   const [linkingExpires, setLinkingExpires] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [telegramLinked, setTelegramLinked] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -120,21 +121,11 @@ export default function AjustesPage() {
     }
   }, [telegramId, auth.currentUser]);
 
-  const saveTelegramId = async () => {
-    if (!auth.currentUser) return;
-    setLoading(true);
-    try {
-      await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        telegramId: telegramId
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch {
-      alert("Error al guardar.");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!telegramLinked) {
+      setShowHelp(true);
     }
-  };
+  }, [telegramLinked]);
 
   const addCategories = async () => {
     if (!newCategories.trim() || !auth.currentUser) return;
@@ -202,6 +193,52 @@ export default function AjustesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
         </div>
       </div>
+
+      {/* Help Banner - Primera vez */}
+      {!telegramLinked && (
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <MessageCircle size={20} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-base mb-1">Conecta Telegram</h3>
+              <p className="text-sm opacity-90 mb-3">
+                Registra gastos con la voz desde tu teléfono. Solo di "gasté 50 en comida" y el bot lo guarda.
+              </p>
+              <div className="flex gap-2">
+                <a 
+                  href={TELEGRAM_BOT_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 bg-white text-indigo-600 px-4 py-2.5 rounded-xl font-semibold text-sm text-center flex items-center justify-center gap-2"
+                >
+                  <ExternalLink size={14} />
+                  Abrir Bot
+                </a>
+                <button 
+                  onClick={() => setShowHelp(!showHelp)}
+                  className="px-4 py-2.5 bg-white/20 rounded-xl font-medium text-sm"
+                >
+                  <HelpCircle size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {showHelp && (
+            <div className="mt-4 pt-4 border-t border-white/20 text-sm space-y-2">
+              <p className="font-semibold">Cómo configurar:</p>
+              <ol className="space-y-1 opacity-90">
+                <li>1. Presiona "Abrir Bot" para ir a Telegram</li>
+                <li>2. Envía cualquier mensaje al bot</li>
+                <li>3. Regresa aquí y genera tu código de vinculación</li>
+                <li>4. Escribe <span className="font-mono bg-white/20 px-1 rounded">/vincular [código]</span> en el bot</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Telegram Bot */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
