@@ -39,6 +39,10 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
         return ctx.reply(getHelpMessage());
       }
       
+      if (item.tipo === "enlace_web") {
+        return ctx.reply("🌐 *Accede a la aplicación web:*\n\nhttps://gastos-delta-pearl.vercel.app/");
+      }
+      
       if (!item.monto && item.tipo !== "consulta_saldo") continue;
       const monto = Math.abs(item.monto);
       
@@ -178,6 +182,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           if (matchMonto && matchCuenta) {
             const isGasto = data.tipo === "gasto";
             const multReverso = isGasto ? 1 : -1;
+            const descripcionReverso = data.descripcion && data.descripcion !== data.categoria ? ` - ${data.descripcion}` : "";
             
             if (data.accountId) {
               const accountDocMatch = accountsSnap.docs.find(a => a.id === data.accountId);
@@ -185,7 +190,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
                 const currentSaldo = accountDocMatch.data().saldo || 0;
                 const newSaldo = currentSaldo + (multReverso * montoReverso);
                 await adminDb.collection("accounts").doc(data.accountId).update({ saldo: newSaldo });
-                results.push(`↩️ REVERSADO: $${montoReverso} en ${accountDocMatch.data().nombre} (saldo: $${newSaldo.toFixed(2)})`);
+                results.push(`↩️ REVERSADO: $${montoReverso} en ${accountDocMatch.data().nombre}${descripcionReverso} (saldo: $${newSaldo.toFixed(2)})`);
               }
             }
             
@@ -206,14 +211,16 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
 
         if (accountDoc) {
           const mult = item.tipo === "ingreso" ? 1 : -1;
+          const descripcion = item.descripcion || item.categoria || userInput;
           batch.set(adminDb.collection("transactions").doc(), {
             userId, monto, tipo: item.tipo || "gasto", accountId: accountDoc.id,
-            categoria: item.categoria || "Varios", descripcion: item.descripcion || userInput,
+            categoria: item.categoria || "Varios", descripcion: descripcion,
             timestamp, fuente: "telegram"
           });
           batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(mult * monto) });
           const dateLabel = item.fecha ? `[${item.fecha}] ` : "";
-          results.push(`${mult > 0 ? "💰" : "💳"} ${dateLabel}$${monto} en ${item.categoria}.`);
+          const detailLabel = item.descripcion && item.descripcion !== item.categoria ? ` - ${item.descripcion}` : "";
+          results.push(`${mult > 0 ? "💰" : "💳"} ${dateLabel}$${monto} en ${item.categoria}${detailLabel}`);
         }
       }
     }

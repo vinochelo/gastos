@@ -1,7 +1,7 @@
 'use client';
 
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { useRecentTransactions } from '@/hooks/useFirestore';
+import { useRecentTransactions, Transaction } from '@/hooks/useFirestore';
 import { useState, useMemo, useCallback } from "react";
 import { ChevronLeft } from "lucide-react";
 
@@ -15,6 +15,15 @@ const COLORS = [
   '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16',
   '#f97316', '#14b8a6', '#a855f7', '#3b82f6',
 ];
+
+const getTimestamp = (tx: Transaction): number => {
+  const ts = tx.timestamp;
+  if (ts instanceof Date) return ts.getTime();
+  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
+    return ts.toDate().getTime();
+  }
+  return 0;
+};
 
 export default function CategoryChart() {
   const { transactions } = useRecentTransactions(100);
@@ -42,11 +51,7 @@ export default function CategoryChart() {
     if (!selectedCategory) return [];
     return transactions
       .filter(tx => tx.categoria === selectedCategory && tx.tipo === activeType)
-      .sort((a, b) => {
-        const aDate = 'toDate' in a.timestamp ? a.timestamp.toDate() : new Date(a.timestamp);
-        const bDate = 'toDate' in b.timestamp ? b.timestamp.toDate() : new Date(b.timestamp);
-        return bDate.getTime() - aDate.getTime();
-      });
+      .sort((a, b) => getTimestamp(b) - getTimestamp(a));
   }, [selectedCategory, transactions, activeType]);
 
   const categoryTotal = categoryTransactions.reduce((sum, tx) => sum + tx.monto, 0);

@@ -49,7 +49,9 @@ El usuario te envía un mensaje sobre sus finanzas personales. Tu trabajo es ent
 6. **CONSULTAR SALDO**: "cuánto tengo", "mi saldo", "cuánto hay en la cuenta", "balances"
    - Si menciona cuenta específica: "cuánto hay en efectivo"
 
-7. **CONSULTAR GASTOS**: "cuánto gasté esta semana", "qué gasté en comer", "mis gastos del mes"
+  7. **CONSULTAR GASTOS**: "cuánto gasté esta semana", "qué gasté en comer", "mis gastos del mes"
+
+  8. **ENLACE WEB**: Si el usuario pide el link, url, página web, aplicación o cómo acceder, responde con tipo "enlace_web"
 
 **CATEGORÍAS DEL USUARIO:**
 Gastos: ${expCats.join(", ")}
@@ -58,13 +60,16 @@ Ingresos: ${incCats.join(", ")}
 **CUENTAS DISPONIBLES:**
 ${accountNames.join(", ")}
 
+**ENLACE A LA APLICACIÓN WEB:**
+https://gastos-delta-pearl.vercel.app/
+
 **INSTRUCCIONES DE RESPUESTA:**
 Responde SOLO con JSON válido, sin explicaciones.
 Estructura exacta:
 {
   "items": [
     {
-      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria" | "ayuda",
+      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria" | "ayuda" | "enlace_web",
       "monto": número (obligatorio para gasto/ingreso/transferencia/reverso),
       "categoria": "categoría detectada",
       "cuenta": "cuenta donde se hizo",
@@ -123,6 +128,9 @@ export function getHelpMessage(): string {
 📅 *Con fecha específica:*
 "ayer gasté 30"
 "el lunes pagué 50"
+
+🌐 *Acceder a la web:*
+"dame el link" | "cómo entro a la app" | "la página web"
 
 ¡Escríbeme cualquier cosa y haré mi mejor esfuerzo!`;
 }

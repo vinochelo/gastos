@@ -64,6 +64,21 @@ export function useRecentTransactions(limitCount = 10) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const getTimestamp = (tx: Transaction): number => {
+    const ts = tx.timestamp;
+    if (ts instanceof Date) return ts.getTime();
+    if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
+      return ts.toDate().getTime();
+    }
+    if (typeof ts === 'object' && ts !== null) {
+      const tsObj = ts as { seconds?: number; nanoseconds?: number };
+      if (tsObj.seconds) {
+        return tsObj.seconds * 1000 + (tsObj.nanoseconds || 0) / 1000000;
+      }
+    }
+    return 0;
+  };
+
   useEffect(() => {
     let unsubscribeFirestore: (() => void) | null = null;
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -83,7 +98,12 @@ export function useRecentTransactions(limitCount = 10) {
         limit(limitCount)
       );
       unsubscribeFirestore = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
+        const data = snapshot.docs.map(doc => {
+          const tx = doc.data() as Transaction;
+          tx.id = doc.id;
+          return tx;
+        });
+        data.sort((a, b) => getTimestamp(b) - getTimestamp(a));
         setTransactions(data);
         setLoading(false);
       });
