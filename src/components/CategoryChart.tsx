@@ -3,6 +3,8 @@
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useRecentTransactions } from '@/hooks/useFirestore';
 import { useState, useMemo } from "react";
+import { X, TrendingDown, TrendingUp, ChevronLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface CategoryData {
   name: string;
@@ -18,6 +20,8 @@ const COLORS = [
 export default function CategoryChart() {
   const { transactions } = useRecentTransactions(100);
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const router = useRouter();
 
   const categoryData = useMemo(() => {
     return transactions
@@ -36,6 +40,60 @@ export default function CategoryChart() {
 
   const total = categoryData.reduce((sum, item) => sum + item.value, 0);
 
+  const categoryTransactions = useMemo(() => {
+    if (!selectedCategory) return [];
+    return transactions
+      .filter(tx => tx.categoria === selectedCategory && tx.tipo === activeType)
+      .sort((a, b) => {
+        const aDate = 'toDate' in a.timestamp ? a.timestamp.toDate() : new Date(a.timestamp);
+        const bDate = 'toDate' in b.timestamp ? b.timestamp.toDate() : new Date(b.timestamp);
+        return bDate.getTime() - aDate.getTime();
+      });
+  }, [selectedCategory, transactions, activeType]);
+
+  const categoryTotal = categoryTransactions.reduce((sum, tx) => sum + tx.monto, 0);
+
+  if (selectedCategory) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-6">
+          <button 
+            onClick={() => setSelectedCategory(null)}
+            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div>
+            <h3 className="text-lg font-bold">{selectedCategory}</h3>
+            <p className="text-sm opacity-40">{categoryTransactions.length} transacciones • ${categoryTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {categoryTransactions.map((tx) => {
+            const ts = tx.timestamp;
+            const date = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
+            return (
+              <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
+                <div>
+                  <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
+                  <p className="text-xs opacity-40">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</p>
+                </div>
+                <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
+                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            );
+          })}
+          
+          {categoryTransactions.length === 0 && (
+            <p className="text-center py-8 opacity-40">Sin transacciones en esta categoría</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (transactions.length === 0 || categoryData.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-10 text-center border border-gray-100 dark:border-gray-700">
@@ -45,9 +103,6 @@ export default function CategoryChart() {
   }
 
   const formatAmount = (amount: number) => {
-    if (amount >= 1000) {
-      return amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
     return amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
@@ -115,9 +170,10 @@ export default function CategoryChart() {
             const percentage = ((entry.value / total) * 100).toFixed(1);
             
             return (
-              <div 
+              <button
                 key={entry.name}
-                className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-700/50 last:border-0"
+                onClick={() => setSelectedCategory(entry.name)}
+                className="w-full flex items-center justify-between py-2.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg px-2 -mx-2 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div 
@@ -130,7 +186,7 @@ export default function CategoryChart() {
                   <span className="text-sm font-medium opacity-60">${formatAmount(entry.value)}</span>
                   <span className="text-base font-bold w-14 text-right">{percentage}%</span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
