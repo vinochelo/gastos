@@ -74,6 +74,8 @@ export default function AjustesPage() {
 
   const generateLinkingCode = useCallback(async () => {
     if (!auth.currentUser || codeLoading) return;
+    
+    const userId = auth.currentUser.uid;
     setCodeLoading(true);
     
     try {
@@ -81,42 +83,47 @@ export default function AjustesPage() {
       const data = await res.json();
       if (data.code) {
         setLinkingCode(data.code);
-        showToast("Código generado correctamente");
+        showToast("Código generado");
       } else {
-        showToast("Error al generar código");
         console.error("Error:", data.error);
       }
     } catch (err) {
-      showToast("Error de conexión");
-      console.error(err);
+      console.error("Error de conexión:", err);
     } finally {
       setCodeLoading(false);
     }
-  }, [codeLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!telegramLinked && auth.currentUser && !linkingCode) {
-      generateLinkingCode();
+    if (!telegramLinked && auth.currentUser && !linkingCode && !codeLoading) {
+      const timer = setTimeout(() => {
+        generateLinkingCode();
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [telegramLinked, auth.currentUser, linkingCode, generateLinkingCode]);
+  }, [telegramLinked, auth.currentUser, linkingCode, codeLoading, generateLinkingCode]);
 
   useEffect(() => {
     if (!telegramLinked && auth.currentUser) {
       const interval = setInterval(async () => {
-        const snap = await getDoc(doc(db, "users", auth.currentUser!.uid));
-        if (snap.exists()) {
-          const data = snap.data() as UserConfig;
-          if (data.telegramId) {
-            setTelegramId(data.telegramId);
-            setTelegramLinked(true);
-            setLinkingCode(null);
-            showToast("¡Telegram vinculado!");
+        try {
+          const snap = await getDoc(doc(db, "users", auth.currentUser!.uid));
+          if (snap.exists()) {
+            const data = snap.data() as UserConfig;
+            if (data.telegramId) {
+              setTelegramId(data.telegramId);
+              setTelegramLinked(true);
+              setLinkingCode(null);
+              showToast("¡Telegram vinculado!");
+            }
           }
+        } catch (err) {
+          console.error("Error checking telegram:", err);
         }
-      }, 2000);
+      }, 3000);
       return () => clearInterval(interval);
     }
-  }, [telegramLinked, auth.currentUser]);
+  }, [telegramLinked]);
 
   useEffect(() => {
     if (!telegramLinked) {
