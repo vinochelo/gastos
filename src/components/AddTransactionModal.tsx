@@ -53,6 +53,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         accountId,
         tipo: type,
         timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
         fuente: "web"
       });
 

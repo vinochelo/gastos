@@ -13,8 +13,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 
-const getTimestamp = (tx: Transaction): number => {
-  const ts = tx.timestamp;
+const getCreatedAt = (tx: Transaction): number => {
+  const ts = tx.createdAt;
+  if (!ts) return 0;
   if (ts instanceof Date) return ts.getTime();
   if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
     return ts.toDate().getTime();
@@ -49,7 +50,7 @@ export default function Dashboard() {
   }, [transactions, accounts]);
 
   const recentTransactions = useMemo(() => {
-    return [...transactions].sort((a, b) => getTimestamp(b) - getTimestamp(a));
+    return [...transactions].sort((a, b) => getCreatedAt(b) - getCreatedAt(a));
   }, [transactions]);
 
   if (loading) return (

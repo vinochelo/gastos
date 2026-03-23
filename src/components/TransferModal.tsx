@@ -38,6 +38,7 @@ export default function TransferModal({ isOpen, onClose }: { isOpen: boolean, on
         descripcion: `Transferencia: ${fromAccount?.nombre} → ${toAccount?.nombre}`,
         categoria: "Transferencia",
         timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
         fuente: "web"
       });
 

@@ -47,12 +47,12 @@ export default function RootLayout({
             </div>
           </aside>
 
-          <main className="flex-1 md:ml-64 p-4 sm:p-6 lg:p-8 pb-32 md:pb-8 max-w-3xl mx-auto w-full">
+          <main className="flex-1 md:ml-64 p-4 sm:p-6 lg:p-8 pb-36 md:pb-8 max-w-3xl mx-auto w-full">
             {children}
           </main>
         </div>
         
-        <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border flex justify-around p-4 md:hidden z-50">
+        <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-lg border-t border-border flex justify-around p-4 pb-6 md:hidden z-[60] safe-area-bottom">
           <MobileNavItem href="/" label="Inicio" icon="Home" />
           <MobileNavItem href="/transacciones" label="Gastos" icon="List" />
           <MobileNavItem href="/cuentas" label="Cuentas" icon="Wallet" />

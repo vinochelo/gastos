@@ -177,7 +177,7 @@ export default function CategoryChart() {
               <button
                 key={entry.name}
                 onClick={() => handleCategoryClick(entry.name)}
-                className="w-full flex items-center justify-between py-3 border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2 transition-colors active:bg-gray-100 dark:active:bg-gray-600"
+                className="w-full flex items-center justify-between py-1.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2 transition-colors active:bg-gray-100 dark:active:bg-gray-600"
               >
                 <div className="flex items-center gap-3">
                   <div 

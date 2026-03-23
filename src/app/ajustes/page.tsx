@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Send, Bot, Plus, X, ChevronLeft, RefreshCw, LogOut } from "lucide-react";
+import { Send, Bot, Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, ExternalLink, Check, Link } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
+
+const TELEGRAM_BOT_USERNAME = "controldegastosvvBot";
 
 export default function AjustesPage() {
   const [telegramId, setTelegramId] = useState("");
@@ -17,6 +19,10 @@ export default function AjustesPage() {
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [linkingCode, setLinkingCode] = useState<string | null>(null);
+  const [linkingExpires, setLinkingExpires] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [telegramLinked, setTelegramLinked] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -26,6 +32,7 @@ export default function AjustesPage() {
         if (snap.exists()) {
           const data = snap.data() as UserConfig;
           setTelegramId(data.telegramId || "");
+          setTelegramLinked(!!data.telegramId);
           
           // Load expense categories
           if (data.expenseCategories && data.expenseCategories.length > 0) {
@@ -57,6 +64,61 @@ export default function AjustesPage() {
 
     return () => unsubscribe();
   }, [router]);
+
+  const generateLinkingCode = useCallback(async () => {
+    try {
+      const res = await fetch('/api/linking/generate');
+      const data = await res.json();
+      if (data.code) {
+        setLinkingCode(data.code);
+        setLinkingExpires(data.expiresAt);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!telegramLinked && auth.currentUser) {
+      generateLinkingCode();
+    }
+  }, [telegramLinked, auth.currentUser, generateLinkingCode]);
+
+  useEffect(() => {
+    if (!linkCopied) return;
+    const timer = setTimeout(() => setLinkCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [linkCopied]);
+
+  const copyToClipboard = async () => {
+    if (!linkingCode) return;
+    const text = `/vincular ${linkingCode}`;
+    await navigator.clipboard.writeText(text);
+    setLinkCopied(true);
+  };
+
+  const openTelegram = () => {
+    if (!linkingCode) return;
+    const url = `https://t.me/${TELEGRAM_BOT_USERNAME}?text=/vincular%20${linkingCode}`;
+    window.open(url, '_blank');
+  };
+
+  useEffect(() => {
+    if (!telegramId && auth.currentUser) {
+      const interval = setInterval(async () => {
+        const snap = await getDoc(doc(db, "users", auth.currentUser!.uid));
+        if (snap.exists()) {
+          const data = snap.data() as UserConfig;
+          if (data.telegramId) {
+            setTelegramId(data.telegramId);
+            setTelegramLinked(true);
+            setLinkingCode(null);
+          }
+        }
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [telegramId, auth.currentUser]);
 
   const saveTelegramId = async () => {
     if (!auth.currentUser) return;
@@ -148,37 +210,63 @@ export default function AjustesPage() {
           <h2 className="text-base font-semibold">Conectar Telegram</h2>
         </div>
         
-        <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-xl mb-4">
-          <p className="text-xs font-semibold opacity-60 mb-2">Tu Telegram ID:</p>
-          <p className="text-lg font-bold font-mono">{telegramId || "No vinculado"}</p>
-        </div>
-        
-        <div className="bg-green-50 dark:bg-green-950/30 p-4 rounded-xl mb-4 text-sm">
-          <p className="font-semibold mb-2">Cómo conectar:</p>
-          <ol className="text-xs opacity-70 space-y-1 list-decimal list-inside">
-            <li>Abre Telegram y busca <span className="font-bold">@controldegastosvvBot</span></li>
-            <li>Envía cualquier mensaje al bot</li>
-            <li>Busca @userinfobot y copia tu ID</li>
-            <li>Pega tu ID abajo y guarda</li>
-          </ol>
-        </div>
-        
-        <div className="flex gap-2">
-          <input 
-            type="text"
-            value={telegramId}
-            onChange={(e) => setTelegramId(e.target.value)}
-            placeholder="Tu Telegram ID..."
-            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none p-3 rounded-xl text-sm"
-          />
-          <button 
-            onClick={saveTelegramId} 
-            disabled={loading} 
-            className="bg-foreground text-background px-4 rounded-xl font-medium text-sm flex items-center gap-2"
-          >
-            {saved ? "✓" : <Send size={16} />}
-          </button>
-        </div>
+        {telegramLinked ? (
+          <div className="text-center py-4">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Check size={32} className="text-green-500" />
+            </div>
+            <p className="text-sm font-medium mb-1">¡Telegram vinculado!</p>
+            <p className="text-xs opacity-50 font-mono">{telegramId}</p>
+          </div>
+        ) : linkingCode ? (
+          <div className="space-y-4">
+            <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-xl p-5 text-center">
+              <p className="text-xs font-semibold uppercase tracking-wider opacity-50 mb-2">Tu código de vinculación</p>
+              <p className="text-4xl font-bold font-mono tracking-widest text-indigo-600 dark:text-indigo-400">{linkingCode}</p>
+              <p className="text-xs opacity-40 mt-2">⏰ Expira en 5 minutos</p>
+            </div>
+            
+            <div className="flex gap-2">
+              <button 
+                onClick={copyToClipboard}
+                className="flex-1 bg-gray-100 dark:bg-gray-700 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
+              >
+                {linkCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                {linkCopied ? "Copiado" : "Copiar código"}
+              </button>
+              <button 
+                onClick={openTelegram}
+                className="flex-1 bg-indigo-500 text-white py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
+              >
+                <ExternalLink size={16} />
+                Abrir Telegram
+              </button>
+            </div>
+            
+            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 text-xs opacity-70 space-y-1">
+              <p className="font-semibold opacity-100">Cómo vincular:</p>
+              <p>1. Copia el código o presiona "Abrir Telegram"</p>
+              <p>2. En el bot, escribe: <span className="font-mono font-semibold">/vincular {linkingCode}</span></p>
+              <p>3. ¡Listo! La página se actualizará automáticamente</p>
+            </div>
+            
+            <button 
+              onClick={generateLinkingCode}
+              className="w-full text-xs text-blue-500 hover:text-blue-600 font-medium"
+            >
+              ↻ Generar nuevo código
+            </button>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <button 
+              onClick={generateLinkingCode}
+              className="bg-indigo-500 text-white px-6 py-3 rounded-xl font-medium text-sm"
+            >
+              Generar código de vinculación
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Categories */}

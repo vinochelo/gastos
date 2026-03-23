@@ -60,6 +60,13 @@ Ingresos: ${incCats.join(", ")}
 **CUENTAS DISPONIBLES:**
 ${accountNames.join(", ")}
 
+**REGLAS DE MONTO:**
+- "centavos", "ctvs", "céntimos" = dividir entre 100 (ej: "35 centavos" = 0.35)
+- "uno", "una" = 1; "dos" = 2; etc.
+- "$50", "50 pesos", "50" = 50
+- Si hay varios montos separados por "más", "y", "+", crea un item por cada uno
+- Si dice "pasajes", "pasaje", "pasaje de bus", "pasaje del bus" → categoría "Transporte"
+
 **ENLACE A LA APLICACIÓN WEB:**
 https://gastos-delta-pearl.vercel.app/
 
@@ -70,14 +77,16 @@ Estructura exacta:
   "items": [
     {
       "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria" | "ayuda" | "enlace_web",
-      "monto": número (obligatorio para gasto/ingreso/transferencia/reverso),
-      "categoria": "categoría detectada",
-      "cuenta": "cuenta donde se hizo",
+      "monto": número (OBLIGATORIO para gasto/ingreso/transferencia/reverso, usa decimales con punto: 0.35),
+      "categoria": "categoría detectada del usuario o común",
+      "cuenta": "nombre de la cuenta donde se hizo (usa la primera si hay varias)",
       "descripcion": "descripción o lo que escribió el usuario",
-      "fecha": "YYYY-MM-DD"
+      "fecha": "YYYY-MM-DD (solo si menciona fecha específica, si no omite el campo)"
     }
   ]
 }
+
+Si detecta varios gastos en un mensaje, crea un item separado para cada uno.
 
 Si el mensaje es solo un saludo o no puedes entender qué quiere hacer, devuelve:
 {"items": [{"tipo": "ayuda", "monto": 0}]}

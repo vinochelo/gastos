@@ -86,7 +86,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
         if (fromDoc && toDoc) {
           batch.set(adminDb.collection("transactions").doc(), {
             userId, monto, tipo: "transferencia", fromId: fromDoc.id, toId: toDoc.id,
-            timestamp, fuente: "telegram",
+            timestamp, createdAt: admin.firestore.FieldValue.serverTimestamp(), fuente: "telegram",
             descripcion: item.descripcion || "Transferencia"
           });
           batch.update(fromDoc.ref, { saldo: admin.firestore.FieldValue.increment(-monto) });
@@ -204,24 +204,37 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           results.push(`⚠️ No encontré transacción de $${montoReverso} para revertir.`);
         }
       } else {
-        const accountDoc = accountsSnap.docs.find(d => 
+        let accountDoc = accountsSnap.docs.find(d => 
           d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||
           item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
-        ) || (accountsSnap.docs.length === 1 ? accountsSnap.docs[0] : null);
-
-        if (accountDoc) {
-          const mult = item.tipo === "ingreso" ? 1 : -1;
-          const descripcion = item.descripcion || item.categoria || userInput;
-          batch.set(adminDb.collection("transactions").doc(), {
-            userId, monto, tipo: item.tipo || "gasto", accountId: accountDoc.id,
-            categoria: item.categoria || "Varios", descripcion: descripcion,
-            timestamp, fuente: "telegram"
-          });
-          batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(mult * monto) });
-          const dateLabel = item.fecha ? `[${item.fecha}] ` : "";
-          const detailLabel = item.descripcion && item.descripcion !== item.categoria ? ` - ${item.descripcion}` : "";
-          results.push(`${mult > 0 ? "💰" : "💳"} ${dateLabel}$${monto} en ${item.categoria}${detailLabel}`);
+        );
+        
+        if (!accountDoc) {
+          accountDoc = accountsSnap.docs.find(d => 
+            d.data().nombre.toLowerCase().includes("efectivo")
+          );
         }
+        
+        if (!accountDoc && accountsSnap.docs.length > 0) {
+          accountDoc = accountsSnap.docs[0];
+        }
+
+        if (!accountDoc) {
+          results.push(`⚠️ No tienes cuentas registradas. Crea una en la app web.`);
+          continue;
+        }
+
+        const mult = item.tipo === "ingreso" ? 1 : -1;
+        const descripcion = item.descripcion || item.categoria || userInput;
+        batch.set(adminDb.collection("transactions").doc(), {
+          userId, monto, tipo: item.tipo || "gasto", accountId: accountDoc.id,
+          categoria: item.categoria || "Varios", descripcion: descripcion,
+          timestamp, createdAt: admin.firestore.FieldValue.serverTimestamp(), fuente: "telegram"
+        });
+        batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(mult * monto) });
+        const dateLabel = item.fecha ? `[${item.fecha}] ` : "";
+        const detailLabel = item.descripcion && item.descripcion !== item.categoria ? ` - ${item.descripcion}` : "";
+        results.push(`${mult > 0 ? "💰" : "💳"} ${dateLabel}$${monto} en ${item.categoria}${detailLabel} (${accountDoc.data().nombre})`);
       }
     }
 
@@ -236,6 +249,50 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
     ctx.reply("❌ Error en el procesamiento. Verifica que el bot esté configurado.");
   }
 }
+
+bot.command("vincular", async (ctx) => {
+  const args = ctx.message.text.split(" ").slice(1);
+  const code = args[0];
+
+  if (!code) {
+    return ctx.reply("📋 Uso: /vincular [código]\n\nGenera un código desde la app web primero.");
+  }
+
+  try {
+    const codeDoc = await adminDb.collection("linkingCodes").doc(code).get();
+
+    if (!codeDoc.exists) {
+      return ctx.reply("❌ Código inválido. Genera uno nuevo desde la app web.");
+    }
+
+    const data = codeDoc.data()!;
+    const now = admin.firestore.Timestamp.now();
+    const isExpired = data.expiresAt.toMillis() < now.toMillis();
+
+    if (data.used) {
+      return ctx.reply("❌ Este código ya fue usado.");
+    }
+
+    if (isExpired) {
+      return ctx.reply("⏰ Este código expiró. Genera uno nuevo desde la app web.");
+    }
+
+    const telegramId = ctx.from.id.toString();
+    const username = ctx.from.username ? `@${ctx.from.username}` : "";
+
+    await adminDb.collection("users").doc(data.userId).update({
+      telegramId,
+      telegramUsername: username
+    });
+
+    await codeDoc.ref.update({ used: true });
+
+    ctx.reply("✅ ¡Cuenta vinculada exitosamente!\n\nYa puedes registrar gastos directamente desde Telegram.");
+  } catch (error) {
+    console.error(error);
+    ctx.reply("❌ Error al vincular. Intenta de nuevo.");
+  }
+});
 
 bot.on("text", async (ctx) => {
   const telegramId = ctx.from.id.toString();
