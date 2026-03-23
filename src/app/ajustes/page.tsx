@@ -125,11 +125,10 @@ export default function AjustesPage() {
     }
   };
 
-  const openTelegram = () => {
-    if (!linkingCode) return;
+  const getTelegramLink = () => {
+    if (!linkingCode) return "";
     const command = `/vincular ${linkingCode}`;
-    const url = `https://t.me/${TELEGRAM_BOT_USERNAME}?text=${encodeURIComponent(command)}`;
-    window.open(url, '_blank');
+    return `https://t.me/${TELEGRAM_BOT_USERNAME}?text=${encodeURIComponent(command)}`;
   };
 
   const addCategories = async () => {
@@ -255,13 +254,15 @@ export default function AjustesPage() {
                 <Copy size={16} />
                 Copiar
               </button>
-              <button 
-                onClick={openTelegram}
-                className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-colors"
+              <a 
+                href={getTelegramLink()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-colors text-center"
               >
                 <ExternalLink size={16} />
                 Ir al Bot
-              </button>
+              </a>
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 text-xs">
