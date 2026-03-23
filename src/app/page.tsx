@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAccounts, useRecentTransactions, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, User, Trash2, Wallet, Settings } from "lucide-react";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
@@ -14,13 +14,12 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 
 export default function Dashboard() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const { accounts } = useAccounts();
   const { transactions } = useRecentTransactions(10);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   const stats = useMemo(() => {
@@ -69,32 +68,12 @@ export default function Dashboard() {
         <div>
           <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => router.push('/ajustes')}
-            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
-          >
-            <Settings size={16} className="opacity-50" />
-          </button>
-          <button 
-            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
-          >
-            <User size={16} className="opacity-50" />
-          </button>
-          
-          {isUserMenuOpen && (
-            <div className="absolute right-4 top-16 w-48 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-lg border border-gray-100 dark:border-gray-700 z-50">
-              <p className="text-xs opacity-40 mb-2 truncate">{user.email}</p>
-              <button 
-                onClick={() => { logout(); router.push('/ajustes'); }}
-                className="w-full flex items-center gap-2 p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium"
-              >
-                <Trash2 size={14} /> Cerrar sesión
-              </button>
-            </div>
-          )}
-        </div>
+        <button 
+          onClick={() => router.push('/ajustes')}
+          className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+        >
+          <Settings size={16} className="opacity-50" />
+        </button>
       </div>
 
       {/* Chart - MAIN */}
@@ -108,7 +87,7 @@ export default function Dashboard() {
         </div>
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Gastos del mes</p>
-          <p className="text-xl font-bold tracking-tight text-red-500">-${stats.expense.toFixed(2)}</p>
+          <p className="text-xl font-bold tracking-tight text-red-500">$${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 
@@ -158,7 +137,7 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
-                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toFixed(2)}
+                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                 </p>
                 <button 
                   onClick={() => setEditingTx(tx)}
@@ -170,7 +149,7 @@ export default function Dashboard() {
                   onClick={() => handleDeleteTx(tx)}
                   className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
                 >
-                  <Trash2 size={12} className="text-red-500" />
+                  <TrendingDown size={12} className="text-red-500" />
                 </button>
               </div>
             </div>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Send, Bot, Plus, X, ChevronLeft } from "lucide-react";
+import { Send, Bot, Plus, X, ChevronLeft, RefreshCw } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
@@ -15,9 +15,8 @@ export default function AjustesPage() {
   const [expenseCategories, setExpenseCategories] = useState<string[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [userDoc, setUserDoc] = useState<UserConfig | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -26,18 +25,23 @@ export default function AjustesPage() {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
           const data = snap.data() as UserConfig;
-          setUserDoc(data);
           setTelegramId(data.telegramId || "");
-          const cats = data.expenseCategories;
-          if (cats && cats.length > 0) {
-            setExpenseCategories(cats);
+          
+          // Load expense categories
+          if (data.expenseCategories && data.expenseCategories.length > 0) {
+            setExpenseCategories(data.expenseCategories);
           } else {
+            // Set default categories if none exist
             setExpenseCategories(DEFAULT_CATEGORIES);
-            await updateDoc(doc(db, "users", user.uid), { expenseCategories: DEFAULT_CATEGORIES });
+            await updateDoc(doc(db, "users", user.uid), { 
+              expenseCategories: DEFAULT_CATEGORIES,
+              incomeCategories: ["Salario", "Inversion", "Regalo", "Otro"]
+            });
           }
-          const incCats = data.incomeCategories;
-          if (incCats && incCats.length > 0) {
-            setIncomeCategories(incCats);
+          
+          // Load income categories
+          if (data.incomeCategories && data.incomeCategories.length > 0) {
+            setIncomeCategories(data.incomeCategories);
           } else {
             setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
           }
@@ -46,7 +50,6 @@ export default function AjustesPage() {
           setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
         }
       } else {
-        setUserDoc(null);
         router.push('/login');
       }
       setAuthLoading(false);
@@ -77,11 +80,9 @@ export default function AjustesPage() {
     if (newCats.length === 0) return;
     
     const updated = [...expenseCategories];
-    let added = 0;
     for (const cat of newCats) {
       if (!updated.includes(cat)) {
         updated.push(cat);
-        added++;
       }
     }
     
@@ -98,6 +99,16 @@ export default function AjustesPage() {
     setExpenseCategories(updated);
     await updateDoc(doc(db, "users", auth.currentUser.uid), {
       expenseCategories: updated
+    });
+  };
+
+  const resetCategories = async () => {
+    if (!auth.currentUser) return;
+    if (!confirm("¿Restablecer categorías a las base?")) return;
+    
+    setExpenseCategories(DEFAULT_CATEGORIES);
+    await updateDoc(doc(db, "users", auth.currentUser.uid), {
+      expenseCategories: DEFAULT_CATEGORIES
     });
   };
 
@@ -119,7 +130,7 @@ export default function AjustesPage() {
         </button>
         <div>
           <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
-          <h1 className="text-2xl font-bold tracking-tight">Ajustes</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
         </div>
       </div>
 
@@ -132,7 +143,7 @@ export default function AjustesPage() {
         
         <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-xl mb-4">
           <p className="text-xs font-semibold opacity-60 mb-2">Tu Telegram ID:</p>
-          <p className="text-lg font-bold font-mono">{userDoc?.telegramId || "No vinculado"}</p>
+          <p className="text-lg font-bold font-mono">{telegramId || "No vinculado"}</p>
         </div>
         
         <div className="bg-green-50 dark:bg-green-950/30 p-4 rounded-xl mb-4 text-sm">
@@ -141,7 +152,7 @@ export default function AjustesPage() {
             <li>Abre Telegram y busca <span className="font-bold">@controldegastosvvBot</span></li>
             <li>Envía cualquier mensaje al bot</li>
             <li>Busca @userinfobot y copia tu ID</li>
-            <li>Pega tu ID arriba y guarda</li>
+            <li>Pega tu ID abajo y guarda</li>
           </ol>
         </div>
         
@@ -165,7 +176,15 @@ export default function AjustesPage() {
 
       {/* Categories */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
-        <h2 className="text-base font-semibold mb-4">Categorías de Gastos</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold">Categorías de Gastos</h2>
+          <button 
+            onClick={resetCategories}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
+          >
+            <RefreshCw size={12} /> Restablecer base
+          </button>
+        </div>
         
         <div className="flex gap-2 mb-4">
           <input 
@@ -179,7 +198,7 @@ export default function AjustesPage() {
             onClick={addCategories}
             className="bg-foreground text-background px-4 rounded-xl flex items-center gap-2 text-sm font-medium"
           >
-            <Plus size={16} /> Añadir
+            <Plus size={16} />
           </button>
         </div>
         
@@ -209,6 +228,12 @@ export default function AjustesPage() {
           <p>• <strong>"borra el gasto de 100"</strong> - Eliminar transacción</p>
           <p>• <strong>"ayer gasté 30"</strong> - Con fecha específica</p>
         </div>
+      </div>
+
+      {/* User Info */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
+        <p className="text-xs opacity-40 mb-2">Cuenta</p>
+        <p className="text-sm font-medium">{auth.currentUser?.email}</p>
       </div>
     </div>
   );
