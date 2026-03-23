@@ -151,39 +151,39 @@ export default function Dashboard() {
           </button>
         </div>
         
-        <div className="space-y-1">
+        <div className="space-y-0">
           {recentTransactions.slice(0, 5).map((tx) => (
-            <div key={tx.id} className="bg-white dark:bg-gray-800 rounded-xl p-3 flex items-center justify-between border border-gray-100 dark:border-gray-700 group">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+            <div key={tx.id} className="bg-white dark:bg-gray-800 rounded-lg p-2.5 flex items-center justify-between border border-gray-100 dark:border-gray-700 group">
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                   tx.tipo === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
                 }`}>
                   {tx.tipo === 'ingreso' ? (
-                    <TrendingUp size={18} className="text-green-600" />
+                    <TrendingUp size={14} className="text-green-600" />
                   ) : (
-                    <Wallet size={18} className="opacity-60" />
+                    <Wallet size={14} className="opacity-60" />
                   )}
                 </div>
-                <div>
-                  <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-xs opacity-40">{tx.categoria}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{tx.descripcion || tx.categoria}</p>
+                  <p className="text-[10px] opacity-40">{tx.categoria}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
                   {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                 </p>
                 <button 
                   onClick={() => setEditingTx(tx)}
-                  className="p-1.5 opacity-60 hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg"
+                  className="p-1 opacity-60 hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded"
                 >
-                  <Settings size={12} className="text-blue-500" />
+                  <Settings size={10} className="text-blue-500" />
                 </button>
                 <button 
                   onClick={() => handleDeleteTx(tx)}
-                  className="p-1.5 opacity-60 hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
+                  className="p-1 opacity-60 hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded"
                 >
-                  <TrendingDown size={12} className="text-red-500" />
+                  <TrendingDown size={10} className="text-red-500" />
                 </button>
               </div>
             </div>

@@ -209,13 +209,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
         );
         
-        if (!accountDoc) {
-          accountDoc = accountsSnap.docs.find(d => 
-            d.data().nombre.toLowerCase().includes("efectivo")
-          );
-        }
-        
-        if (!accountDoc && accountsSnap.docs.length > 0) {
+        if (!accountDoc && accountsSnap.docs.length === 1) {
           accountDoc = accountsSnap.docs[0];
         }
 
