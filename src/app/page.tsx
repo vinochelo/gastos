@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { useAccounts, useRecentTransactions, Transaction } from "@/hooks/useFirestore";
 import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, User, LogOut, Trash2, Wallet } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
@@ -62,7 +61,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-5 pb-28">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -107,11 +106,11 @@ export default function Dashboard() {
       {/* Accounts */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold tracking-tight">Cuentas</h2>
+          <h2 className="text-base font-bold tracking-tight">Cuentas</h2>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
           {accounts.map((acc) => (
-            <div key={acc.id} className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 min-w-[130px]">
+            <div key={acc.id} className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 min-w-[140px]">
               <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 truncate">{acc.nombre}</p>
               <p className={`text-base font-bold ${acc.saldo >= 0 ? '' : 'text-red-500'}`}>
                 ${Math.abs(acc.saldo).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
@@ -124,8 +123,8 @@ export default function Dashboard() {
       {/* Recent */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold tracking-tight">Recientes</h2>
-          <button onClick={() => router.push('/transacciones')} className="text-[10px] font-semibold opacity-40 hover:opacity-100">
+          <h2 className="text-base font-bold tracking-tight">Recientes</h2>
+          <button onClick={() => router.push('/transacciones')} className="text-xs font-semibold opacity-40 hover:opacity-100">
             Ver todo →
           </button>
         </div>
@@ -141,7 +140,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-[10px] opacity-40">{tx.categoria}</p>
+                  <p className="text-xs opacity-40">{tx.categoria}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
