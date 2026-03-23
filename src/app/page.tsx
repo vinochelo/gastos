@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAccounts, useRecentTransactions, useUserConfig, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight } from "lucide-react";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2 } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
@@ -14,27 +14,23 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { accounts } = useAccounts();
-  const { transactions } = useRecentTransactions(10);
+  const { transactions } = useRecentTransactions(100);
   const { config } = useUserConfig();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
-  const [telegramLinked, setTelegramLinked] = useState(false);
 
-  useEffect(() => {
-    if (config) {
-      setTelegramLinked(!!config.telegramId);
-    }
-  }, [config]);
+  const telegramLinked = !!config?.telegramId;
 
   const stats = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     let income = 0, expense = 0;
+    
     transactions.forEach(tx => {
       const ts = tx.timestamp;
       const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
@@ -43,15 +39,35 @@ export default function Dashboard() {
         else if (tx.tipo === 'gasto') expense += tx.monto;
       }
     });
-    const totalBalance = accounts.reduce((acc, a) => acc + (a.saldo || 0), 0);
-    return { income, expense, totalBalance };
+    
+    const calculatedBalances: Record<string, number> = {};
+    accounts.forEach(acc => calculatedBalances[acc.id] = 0);
+    
+    transactions.forEach(tx => {
+      if (tx.tipo === 'ingreso' && tx.accountId) {
+        calculatedBalances[tx.accountId] = (calculatedBalances[tx.accountId] || 0) + tx.monto;
+      } else if (tx.tipo === 'gasto' && tx.accountId) {
+        calculatedBalances[tx.accountId] = (calculatedBalances[tx.accountId] || 0) - tx.monto;
+      } else if (tx.tipo === 'transferencia') {
+        if (tx.fromId) {
+          calculatedBalances[tx.fromId] = (calculatedBalances[tx.fromId] || 0) - tx.monto;
+        }
+        if (tx.toId) {
+          calculatedBalances[tx.toId] = (calculatedBalances[tx.toId] || 0) + tx.monto;
+        }
+      }
+    });
+    
+    const totalBalance = Object.values(calculatedBalances).reduce((acc, val) => acc + val, 0);
+    
+    return { income, expense, totalBalance, calculatedBalances };
   }, [transactions, accounts]);
 
   const recentTransactions = transactions;
 
-  if (loading) return (
+  if (authLoading) return (
     <div className="flex h-64 items-center justify-center">
-      <div className="w-6 h-6 rounded-full bg-gray-200 animate-pulse" />
+      <Loader2 size={24} className="animate-spin text-indigo-500" />
     </div>
   );
   
@@ -71,9 +87,12 @@ export default function Dashboard() {
     } catch { alert("Error"); }
   };
 
+  const getAccountBalance = (accountId: string) => {
+    return stats.calculatedBalances[accountId] || 0;
+  };
+
   return (
     <div className="space-y-5 pb-28">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
@@ -86,7 +105,6 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Telegram Banner - Solo para usuarios sin vincular */}
       {!telegramLinked && (
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white">
           <div className="flex items-start gap-4">
@@ -96,7 +114,7 @@ export default function Dashboard() {
             <div className="flex-1">
               <h3 className="font-bold text-lg mb-1">Conecta Telegram</h3>
               <p className="text-sm opacity-90 mb-4">
-                Registra gastos con tu voz. Di "gasté 50 en comida" y el bot lo guarda.
+                Registra gastos con tu voz.
               </p>
               <button 
                 onClick={() => router.push('/ajustes')}
@@ -110,10 +128,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Chart */}
       <CategoryChart />
 
-      {/* Balance */}
       <div className="flex gap-3">
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
@@ -125,7 +141,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Accounts */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold tracking-tight">Cuentas</h2>
@@ -134,15 +149,14 @@ export default function Dashboard() {
           {accounts.map((acc) => (
             <div key={acc.id} className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 min-w-[140px]">
               <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 truncate">{acc.nombre}</p>
-              <p className={`text-base font-bold ${acc.saldo >= 0 ? '' : 'text-red-500'}`}>
-                ${Math.abs(acc.saldo).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+              <p className={`text-base font-bold ${getAccountBalance(acc.id) >= 0 ? '' : 'text-red-500'}`}>
+                ${Math.abs(getAccountBalance(acc.id)).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
               </p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Recent */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold tracking-tight">Recientes</h2>
@@ -191,7 +205,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex gap-2">
         <button
           onClick={() => setIsAddModalOpen(true)}
