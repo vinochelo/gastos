@@ -1,16 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Send, Bot, Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, ExternalLink, Check, Link, HelpCircle, MessageCircle } from "lucide-react";
+import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, HelpCircle, MessageCircle, Smartphone, Monitor } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
 
 const TELEGRAM_BOT_USERNAME = "controldegastosvvBot";
-const TELEGRAM_BOT_LINK = `https://t.me/${TELEGRAM_BOT_USERNAME}`;
 
 export default function AjustesPage() {
   const [telegramId, setTelegramId] = useState("");
@@ -20,11 +19,21 @@ export default function AjustesPage() {
   const [loading, setLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [linkingCode, setLinkingCode] = useState<string | null>(null);
-  const [linkingExpires, setLinkingExpires] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [telegramLinked, setTelegramLinked] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -35,11 +44,9 @@ export default function AjustesPage() {
           setTelegramId(data.telegramId || "");
           setTelegramLinked(!!data.telegramId);
           
-          // Load expense categories
-          if (data.expenseCategories && data.expenseCategories.length > 0) {
+          if (data.expenseCategories?.length) {
             setExpenseCategories(data.expenseCategories);
           } else {
-            // Set default categories if none exist
             setExpenseCategories(DEFAULT_CATEGORIES);
             await updateDoc(doc(db, "users", user.uid), { 
               expenseCategories: DEFAULT_CATEGORIES,
@@ -47,8 +54,7 @@ export default function AjustesPage() {
             });
           }
           
-          // Load income categories
-          if (data.incomeCategories && data.incomeCategories.length > 0) {
+          if (data.incomeCategories?.length) {
             setIncomeCategories(data.incomeCategories);
           } else {
             setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
@@ -66,29 +72,31 @@ export default function AjustesPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const generateLinkingCode = useCallback(async () => {
+  const generateLinkingCode = async () => {
+    if (!auth.currentUser || generatingCode) return;
+    setGeneratingCode(true);
+    
     try {
       const res = await fetch('/api/linking/generate');
       const data = await res.json();
       if (data.code) {
         setLinkingCode(data.code);
-        setLinkingExpires(data.expiresAt);
+        setLinkCopied(false);
+      } else {
+        console.error("Error:", data.error);
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setGeneratingCode(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    if (!telegramLinked && auth.currentUser) {
-      generateLinkingCode();
+    if (linkCopied) {
+      const timer = setTimeout(() => setLinkCopied(false), 2000);
+      return () => clearTimeout(timer);
     }
-  }, [telegramLinked, auth.currentUser, generateLinkingCode]);
-
-  useEffect(() => {
-    if (!linkCopied) return;
-    const timer = setTimeout(() => setLinkCopied(false), 2000);
-    return () => clearTimeout(timer);
   }, [linkCopied]);
 
   const copyToClipboard = async () => {
@@ -100,8 +108,13 @@ export default function AjustesPage() {
 
   const openTelegram = () => {
     if (!linkingCode) return;
-    const url = `https://t.me/${TELEGRAM_BOT_USERNAME}?text=/vincular%20${linkingCode}`;
-    window.open(url, '_blank');
+    const command = `/vincular ${linkingCode}`;
+    
+    if (isMobile) {
+      window.location.href = `tg://resolve?domain=${TELEGRAM_BOT_USERNAME}&text=${encodeURIComponent(command)}`;
+    } else {
+      window.open(`https://t.me/${TELEGRAM_BOT_USERNAME}?text=${encodeURIComponent(command)}`, '_blank');
+    }
   };
 
   useEffect(() => {
@@ -116,10 +129,10 @@ export default function AjustesPage() {
             setLinkingCode(null);
           }
         }
-      }, 3000);
+      }, 2000);
       return () => clearInterval(interval);
     }
-  }, [telegramId, auth.currentUser]);
+  }, [telegramId]);
 
   useEffect(() => {
     if (!telegramLinked) {
@@ -157,8 +170,7 @@ export default function AjustesPage() {
 
   const resetCategories = async () => {
     if (!auth.currentUser) return;
-    if (!confirm("¿Estás seguro de restablecer las categorías a las base? Se perderán las categorías personalizadas.")) return;
-    if (!confirm("¿Confirmas? Esta acción no se puede deshacer.")) return;
+    if (!confirm("¿Restablecer categorías?")) return;
     
     setExpenseCategories(DEFAULT_CATEGORIES);
     await updateDoc(doc(db, "users", auth.currentUser.uid), {
@@ -204,24 +216,11 @@ export default function AjustesPage() {
             <div className="flex-1">
               <h3 className="font-bold text-base mb-1">Conecta Telegram</h3>
               <p className="text-sm opacity-90 mb-3">
-                Registra gastos con la voz desde tu teléfono. Solo di "gasté 50 en comida" y el bot lo guarda.
+                Registra gastos con tu voz. Di "gasté 50 en comida" y el bot lo guarda.
               </p>
-              <div className="flex gap-2">
-                <a 
-                  href={TELEGRAM_BOT_LINK}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 bg-white text-indigo-600 px-4 py-2.5 rounded-xl font-semibold text-sm text-center flex items-center justify-center gap-2"
-                >
-                  <ExternalLink size={14} />
-                  Abrir Bot
-                </a>
-                <button 
-                  onClick={() => setShowHelp(!showHelp)}
-                  className="px-4 py-2.5 bg-white/20 rounded-xl font-medium text-sm"
-                >
-                  <HelpCircle size={16} />
-                </button>
+              <div className="flex items-center gap-2">
+                {isMobile ? <Smartphone size={14} /> : <Monitor size={14} />}
+                <span className="text-xs opacity-80">{isMobile ? "Móvil detectado" : "PC detectada"}</span>
               </div>
             </div>
           </div>
@@ -230,10 +229,9 @@ export default function AjustesPage() {
             <div className="mt-4 pt-4 border-t border-white/20 text-sm space-y-2">
               <p className="font-semibold">Cómo configurar:</p>
               <ol className="space-y-1 opacity-90">
-                <li>1. Presiona "Abrir Bot" para ir a Telegram</li>
-                <li>2. Envía cualquier mensaje al bot</li>
-                <li>3. Regresa aquí y genera tu código de vinculación</li>
-                <li>4. Escribe <span className="font-mono bg-white/20 px-1 rounded">/vincular [código]</span> en el bot</li>
+                <li>1. Genera tu código de vinculación</li>
+                <li>2. Presiona "Ir al Bot" para abrir Telegram</li>
+                <li>3. El comando estará listo, solo envíalo</li>
               </ol>
             </div>
           )}
@@ -242,9 +240,15 @@ export default function AjustesPage() {
 
       {/* Telegram Bot */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-2 mb-4">
-          <Bot size={18} className="opacity-50" />
-          <h2 className="text-base font-semibold">Conectar Telegram</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <MessageCircle size={18} className="opacity-50" />
+            <h2 className="text-base font-semibold">Vincular Telegram</h2>
+          </div>
+          <div className="flex items-center gap-1 text-xs opacity-50">
+            {isMobile ? <Smartphone size={12} /> : <Monitor size={12} />}
+            <span>{isMobile ? "Móvil" : "PC"}</span>
+          </div>
         </div>
         
         {telegramLinked ? (
@@ -255,53 +259,66 @@ export default function AjustesPage() {
             <p className="text-sm font-medium mb-1">¡Telegram vinculado!</p>
             <p className="text-xs opacity-50 font-mono">{telegramId}</p>
           </div>
-        ) : linkingCode ? (
-          <div className="space-y-4">
-            <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-xl p-5 text-center">
-              <p className="text-xs font-semibold uppercase tracking-wider opacity-50 mb-2">Tu código de vinculación</p>
-              <p className="text-4xl font-bold font-mono tracking-widest text-indigo-600 dark:text-indigo-400">{linkingCode}</p>
-              <p className="text-xs opacity-40 mt-2">⏰ Expira en 5 minutos</p>
-            </div>
-            
-            <div className="flex gap-2">
-              <button 
-                onClick={copyToClipboard}
-                className="flex-1 bg-gray-100 dark:bg-gray-700 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
-              >
-                {linkCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
-                {linkCopied ? "Copiado" : "Copiar código"}
-              </button>
-              <button 
-                onClick={openTelegram}
-                className="flex-1 bg-indigo-500 text-white py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
-              >
-                <ExternalLink size={16} />
-                Abrir Telegram
-              </button>
-            </div>
-            
-            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 text-xs opacity-70 space-y-1">
-              <p className="font-semibold opacity-100">Cómo vincular:</p>
-              <p>1. Copia el código o presiona "Abrir Telegram"</p>
-              <p>2. En el bot, escribe: <span className="font-mono font-semibold">/vincular {linkingCode}</span></p>
-              <p>3. ¡Listo! La página se actualizará automáticamente</p>
-            </div>
-            
-            <button 
-              onClick={generateLinkingCode}
-              className="w-full text-xs text-blue-500 hover:text-blue-600 font-medium"
-            >
-              ↻ Generar nuevo código
-            </button>
-          </div>
         ) : (
-          <div className="text-center py-4">
-            <button 
-              onClick={generateLinkingCode}
-              className="bg-indigo-500 text-white px-6 py-3 rounded-xl font-medium text-sm"
-            >
-              Generar código de vinculación
-            </button>
+          <div className="space-y-4">
+            {!linkingCode ? (
+              <button 
+                onClick={generateLinkingCode}
+                disabled={generatingCode}
+                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {generatingCode ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle size={20} />
+                    Generar código de vinculación
+                  </>
+                )}
+              </button>
+            ) : (
+              <>
+                <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-xl p-4 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider opacity-50 mb-2">Comando listo</p>
+                  <div className="bg-gray-900 dark:bg-gray-800 rounded-lg px-4 py-3 inline-block">
+                    <p className="text-green-400 font-mono text-lg">/vincular {linkingCode}</p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <button 
+                    onClick={copyToClipboard}
+                    className="flex-1 bg-gray-100 dark:bg-gray-700 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    {linkCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                    {linkCopied ? "Copiado" : "Copiar"}
+                  </button>
+                  <button 
+                    onClick={openTelegram}
+                    className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle size={16} />
+                    Ir al Bot
+                  </button>
+                </div>
+
+                <div className="bg-green-50 dark:bg-green-950/30 rounded-xl p-4 text-xs">
+                  <p className="font-semibold mb-2 text-green-700 dark:text-green-400">⏰ Expira en 5 minutos</p>
+                  <p className="opacity-70">Presiona "Ir al Bot" y envíalo directamente, o copia y pégalo manualmente.</p>
+                </div>
+                
+                <button 
+                  onClick={generateLinkingCode}
+                  disabled={generatingCode}
+                  className="w-full text-xs text-blue-500 hover:text-blue-600 font-medium py-2 disabled:opacity-50"
+                >
+                  ↻ Generar nuevo código
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -314,7 +331,7 @@ export default function AjustesPage() {
             onClick={resetCategories}
             className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
           >
-            <RefreshCw size={12} /> Restablecer base
+            <RefreshCw size={12} /> Restablecer
           </button>
         </div>
         
@@ -322,7 +339,7 @@ export default function AjustesPage() {
           <input 
             value={newCategories}
             onChange={(e) => setNewCategories(e.target.value)}
-            placeholder="Nueva categoría (separadas por coma)..."
+            placeholder="Nueva categoría..."
             className="flex-1 bg-gray-100 dark:bg-gray-700 border-none p-3 rounded-xl text-sm"
             onKeyDown={(e) => e.key === 'Enter' && addCategories()}
           />
