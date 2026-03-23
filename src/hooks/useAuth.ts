@@ -53,13 +53,22 @@ export function useAuth() {
           });
         }
       } else {
-        // Ya existe: solo actualizar timestamp
-        await setDoc(userRef, {
+        // Ya existe: solo actualizar timestamp y asegurar categorías
+        const existingData = userSnap.data();
+        const updates: Record<string, unknown> = {
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
           updatedAt: serverTimestamp(),
-        }, { merge: true });
+        };
+        
+        // Si no tiene categorías de gastos, asignar las por defecto
+        if (!existingData?.expenseCategories && !existingData?.categories) {
+          updates.expenseCategories = DEFAULT_CATEGORIES;
+          updates.incomeCategories = ["Salario", "Inversion", "Regalo", "Otro"];
+        }
+        
+        await setDoc(userRef, updates, { merge: true });
       }
       
       // Forzar actualización del estado user

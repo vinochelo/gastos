@@ -5,9 +5,7 @@ import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore";
 import { X, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
-
-export const DEFAULT_EXPENSE_CATEGORIES = ["Comida", "Transporte", "Hogar", "Ocio", "Salud", "Educación", "Tecnología", "Ropa", "Regalos", "Mascotas", "Viajes", "Deudas", "Otros", "Golosinas", "Víveres"];
-export const DEFAULT_INCOME_CATEGORIES = ["Salario", "Venta", "Inversión", "Regalo", "Otros Ingresos"];
+import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 
 export default function AddTransactionModal({ isOpen, onClose, defaultType = "gasto" }: { isOpen: boolean, onClose: () => void, defaultType?: "gasto" | "ingreso" }) {
   const { accounts } = useAccounts();
@@ -19,8 +17,8 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [accountId, setAccountId] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const expenseCategories = config?.expenseCategories || config?.categories || DEFAULT_EXPENSE_CATEGORIES;
-  const incomeCategories = config?.incomeCategories || DEFAULT_INCOME_CATEGORIES;
+  const expenseCategories = config?.expenseCategories || DEFAULT_CATEGORIES;
+  const incomeCategories = config?.incomeCategories || ["Salario", "Inversion", "Regalo", "Otro"];
   const categories = type === "gasto" ? expenseCategories : incomeCategories;
 
   useEffect(() => {

@@ -6,9 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { Send, Bot, Trash2, Plus, X, TrendingDown, TrendingUp } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
-
-const DEFAULT_EXPENSES = ["Comida", "Transporte", "Ocio", "Salud", "Hogar", "Otros"];
-const DEFAULT_INCOMES = ["Salario", "Venta", "Inversión", "Regalo"];
+import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 
 export default function AjustesPage() {
   const [telegramId, setTelegramId] = useState("");
@@ -29,11 +27,11 @@ export default function AjustesPage() {
           setUserDoc(data);
           setTelegramId(data.telegramId || "");
           // Migración o carga de datos
-          setExpenseCategories(data.expenseCategories || data.categories || DEFAULT_EXPENSES);
-          setIncomeCategories(data.incomeCategories || DEFAULT_INCOMES);
+          setExpenseCategories(data.expenseCategories || data.categories || DEFAULT_CATEGORIES);
+          setIncomeCategories(data.incomeCategories || ["Salario", "Inversion", "Regalo", "Otro"]);
         } else {
-          setExpenseCategories(DEFAULT_EXPENSES);
-          setIncomeCategories(DEFAULT_INCOMES);
+          setExpenseCategories(DEFAULT_CATEGORIES);
+          setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
         }
       } else {
         setUserDoc(null);
