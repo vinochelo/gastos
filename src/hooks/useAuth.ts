@@ -2,8 +2,9 @@
 
 import { auth, db } from "@/lib/firebase";
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc, writeBatch, collection, addDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
+import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from "@/lib/defaults";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -35,10 +36,22 @@ export function useAuth() {
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
-          telegramId: "", // El usuario lo vinculará en Ajustes
+          telegramId: "",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
+          expenseCategories: DEFAULT_CATEGORIES,
+          incomeCategories: ["Salario", "Inversion", "Regalo", "Otro"]
         });
+
+        // Crear cuentas por defecto
+        for (const acc of DEFAULT_ACCOUNTS) {
+          await addDoc(collection(db, "accounts"), {
+            userId: firebaseUser.uid,
+            nombre: acc.nombre,
+            saldo: acc.saldo,
+            tipo: "bancaria"
+          });
+        }
       } else {
         // Ya existe: solo actualizar timestamp
         await setDoc(userRef, {

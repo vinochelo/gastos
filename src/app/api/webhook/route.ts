@@ -46,7 +46,6 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
       }
 
       if (item.tipo === "reclasificar") {
-        // Obtenemos los últimos 50 movimientos para filtrar en memoria (evita errores de índices complejos)
         const recentSnap = await adminDb.collection("transactions")
           .where("userId", "==", userId)
           .orderBy("timestamp", "desc")
@@ -153,6 +152,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           msg += `\n💰 TOTAL: $${totalGastos.toFixed(2)}`;
           ctx.reply(msg);
           return;
+        }
       } else if (item.tipo === "reverso") {
         const montoReverso = Math.abs(item.monto);
         const cuentaBuscada = item.cuenta?.toLowerCase();
@@ -169,7 +169,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           const data = doc.data();
           const matchMonto = Math.abs(data.monto) === montoReverso;
           const matchCuenta = !cuentaBuscada || 
-            (data.accountId && accountsSnap.docs.some(a => a.id === data.accountId && a.data().nombre.toLowerCase().includes(cuentaBuscada));
+            (data.accountId && accountsSnap.docs.some(a => a.id === data.accountId && a.data().nombre.toLowerCase().includes(cuentaBuscada)));
           
           if (matchMonto && matchCuenta) {
             const isGasto = data.tipo === "gasto";
