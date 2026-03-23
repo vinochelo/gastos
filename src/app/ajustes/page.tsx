@@ -128,12 +128,8 @@ export default function AjustesPage() {
   const openTelegram = () => {
     if (!linkingCode) return;
     const command = `/vincular ${linkingCode}`;
-    
-    if (isMobile) {
-      window.location.href = `tg://resolve?domain=${TELEGRAM_BOT_USERNAME}&text=${encodeURIComponent(command)}`;
-    } else {
-      window.open(`https://t.me/${TELEGRAM_BOT_USERNAME}?text=${encodeURIComponent(command)}`, '_blank');
-    }
+    const url = `https://t.me/${TELEGRAM_BOT_USERNAME}?text=${encodeURIComponent(command)}`;
+    window.open(url, '_blank');
   };
 
   const addCategories = async () => {
@@ -218,13 +214,9 @@ export default function AjustesPage() {
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-base mb-1">Conecta Telegram</h3>
-              <p className="text-sm opacity-90 mb-2">
+              <p className="text-sm opacity-90">
                 Registra gastos con tu voz. Di "gasté 50 en comida" y el bot lo guarda.
               </p>
-              <div className="flex items-center gap-2 text-xs opacity-80">
-                {isMobile ? <Smartphone size={14} /> : <Monitor size={14} />}
-                <span>{isMobile ? "Móvil" : "PC"}</span>
-              </div>
             </div>
           </div>
         </div>
@@ -235,10 +227,6 @@ export default function AjustesPage() {
           <div className="flex items-center gap-2">
             <MessageCircle size={18} className="opacity-50" />
             <h2 className="text-base font-semibold">Vincular Telegram</h2>
-          </div>
-          <div className="flex items-center gap-1 text-xs opacity-50">
-            {isMobile ? <Smartphone size={12} /> : <Monitor size={12} />}
-            <span>{isMobile ? "Móvil" : "PC"}</span>
           </div>
         </div>
         
