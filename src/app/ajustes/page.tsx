@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Send, Bot, Plus, X, ChevronLeft, RefreshCw } from "lucide-react";
+import { Send, Bot, Plus, X, ChevronLeft, RefreshCw, LogOut } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
@@ -104,12 +104,19 @@ export default function AjustesPage() {
 
   const resetCategories = async () => {
     if (!auth.currentUser) return;
-    if (!confirm("¿Restablecer categorías a las base?")) return;
+    if (!confirm("¿Estás seguro de restablecer las categorías a las base? Se perderán las categorías personalizadas.")) return;
+    if (!confirm("¿Confirmas? Esta acción no se puede deshacer.")) return;
     
     setExpenseCategories(DEFAULT_CATEGORIES);
     await updateDoc(doc(db, "users", auth.currentUser.uid), {
       expenseCategories: DEFAULT_CATEGORIES
     });
+  };
+
+  const handleLogout = async () => {
+    if (!confirm("¿Cerrar sesión?")) return;
+    await auth.signOut();
+    router.push('/login');
   };
 
   if (authLoading) return (
@@ -233,7 +240,13 @@ export default function AjustesPage() {
       {/* User Info */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
         <p className="text-xs opacity-40 mb-2">Cuenta</p>
-        <p className="text-sm font-medium">{auth.currentUser?.email}</p>
+        <p className="text-sm font-medium mb-3">{auth.currentUser?.email}</p>
+        <button 
+          onClick={handleLogout}
+          className="w-full bg-red-50 dark:bg-red-950/30 text-red-500 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
+        >
+          <LogOut size={16} /> Cerrar Sesión
+        </button>
       </div>
     </div>
   );

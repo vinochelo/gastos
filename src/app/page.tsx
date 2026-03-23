@@ -87,7 +87,7 @@ export default function Dashboard() {
         </div>
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Gastos del mes</p>
-          <p className="text-xl font-bold tracking-tight text-red-500">$${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+          <p className="text-xl font-bold tracking-tight text-red-500">${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 
