@@ -143,13 +143,13 @@ export default function Dashboard() {
                 </p>
                 <button 
                   onClick={() => setEditingTx(tx)}
-                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg"
+                  className="p-1.5 opacity-60 hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg"
                 >
                   <Settings size={12} className="text-blue-500" />
                 </button>
                 <button 
                   onClick={() => handleDeleteTx(tx)}
-                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
+                  className="p-1.5 opacity-60 hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
                 >
                   <TrendingDown size={12} className="text-red-500" />
                 </button>

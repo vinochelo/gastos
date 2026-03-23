@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore";
-import { X, ChevronDown, TrendingUp, TrendingDown, Tag } from "lucide-react";
+import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle } from "lucide-react";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 
 export default function AddTransactionModal({ isOpen, onClose, defaultType = "gasto" }: { isOpen: boolean, onClose: () => void, defaultType?: "gasto" | "ingreso" }) {
@@ -16,6 +16,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [category, setCategory] = useState("");
   const [accountId, setAccountId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const expenseCategories = (config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES).sort((a, b) => a.localeCompare(b, 'es'));
   const incomeCategories = (config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]).sort((a, b) => a.localeCompare(b, 'es'));
@@ -27,6 +28,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       setDescription("");
       setType(defaultType);
       setAccountId("");
+      setError(null);
     }
   }, [isOpen, defaultType]);
 
@@ -40,9 +42,16 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
     e.preventDefault();
     if (!auth.currentUser || !amount || !accountId) return;
 
+    const monto = parseFloat(amount);
+    if (isNaN(monto) || monto <= 0) {
+      setError("Ingresa un monto válido");
+      return;
+    }
+
     setLoading(true);
+    setError(null);
+    
     try {
-      const monto = parseFloat(amount);
       const mult = type === "ingreso" ? 1 : -1;
       
       await addDoc(collection(db, "transactions"), {
@@ -64,9 +73,12 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
 
       setAmount("");
       setDescription("");
+      setCategory("");
+      setAccountId("");
       onClose();
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      setError("Error al guardar. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -75,88 +87,94 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl p-6 space-y-5 shadow-2xl border border-gray-100 dark:border-gray-700">
-        <div className="flex justify-between items-center">
-          <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-2xl gap-1">
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-gray-100 dark:border-gray-700">
+        <div className="flex justify-between items-center mb-5">
+          <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl gap-1">
             <button 
-              onClick={() => setType("gasto")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'gasto' ? 'bg-red-500 text-white' : 'text-gray-500'}`}
+              onClick={() => { setType("gasto"); setError(null); }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${type === 'gasto' ? 'bg-red-500 text-white' : 'text-gray-500'}`}
             >
-              <TrendingDown size={14} /> Gasto
+              <TrendingDown size={12} /> Gasto
             </button>
             <button 
-              onClick={() => setType("ingreso")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${type === 'ingreso' ? 'bg-green-500 text-white' : 'text-gray-500'}`}
+              onClick={() => { setType("ingreso"); setError(null); }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${type === 'ingreso' ? 'bg-green-500 text-white' : 'text-gray-500'}`}
             >
-              <TrendingUp size={14} /> Ingreso
+              <TrendingUp size={12} /> Ingreso
             </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><X size={20} /></button>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
+            <X size={20} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
-            <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-bold ${type === 'gasto' ? 'text-red-400' : 'text-green-400'}`}>$</span>
+            <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold ${type === 'gasto' ? 'text-red-400' : 'text-green-400'}`}>$</span>
             <input 
               type="number" 
               step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => { setAmount(e.target.value); setError(null); }}
               placeholder="0.00"
-              className={`w-full bg-gray-50 dark:bg-gray-900 border-none text-4xl font-bold p-6 pl-12 rounded-2xl text-center ${type === 'gasto' ? 'text-red-500' : 'text-green-500'}`}
+              className={`w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 text-3xl font-bold p-4 pl-10 rounded-xl text-center focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all ${type === 'gasto' ? 'text-red-500' : 'text-green-500'}`}
               required
-              autoFocus
             />
           </div>
 
           <div className="space-y-1">
             <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1 flex items-center gap-1">
-              <Tag size={10} /> Detalle (ej: viaje a la iglesia)
+              <Tag size={10} /> Detalle
             </label>
             <input 
               type="text"
-              placeholder="Describe el gasto..."
+              placeholder="Describe la transacción..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-medium"
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Categoría</label>
-              <div className="relative">
-                <select 
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-medium appearance-none cursor-pointer"
-                >
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 pointer-events-none" size={16} />
-              </div>
+              <select 
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+              >
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Cuenta</label>
-              <div className="relative">
-                <select 
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-medium appearance-none cursor-pointer"
-                  required
-                >
-                  <option value="">Seleccionar...</option>
-                  {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 opacity-30 pointer-events-none" size={16} />
-              </div>
+              <select 
+                value={accountId}
+                onChange={(e) => { setAccountId(e.target.value); setError(null); }}
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
+              </select>
             </div>
           </div>
 
+          {error && (
+            <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-950/30 p-3 rounded-xl">
+              <AlertCircle size={16} />
+              {error}
+            </div>
+          )}
+
           <button 
+            type="submit"
             disabled={loading || !amount || !accountId}
-            className={`w-full py-4 rounded-2xl font-bold text-lg transition-all disabled:opacity-50 ${type === 'gasto' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
+            className={`w-full py-3.5 rounded-xl font-bold text-base transition-all disabled:opacity-50 disabled:cursor-not-allowed ${type === 'gasto' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
           >
             {loading ? "Guardando..." : "Guardar"}
           </button>
