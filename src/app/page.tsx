@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from "react";
-import { useAccounts, useRecentTransactions, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useAccounts, useRecentTransactions, useUserConfig, Transaction } from "@/hooks/useFirestore";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
@@ -18,9 +18,17 @@ export default function Dashboard() {
   const router = useRouter();
   const { accounts } = useAccounts();
   const { transactions } = useRecentTransactions(10);
+  const { config } = useUserConfig();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [telegramLinked, setTelegramLinked] = useState(false);
+
+  useEffect(() => {
+    if (config) {
+      setTelegramLinked(!!config.telegramId);
+    }
+  }, [config]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -77,6 +85,30 @@ export default function Dashboard() {
           <Settings size={16} className="opacity-50" />
         </button>
       </div>
+
+      {/* Telegram Banner - Solo para usuarios sin vincular */}
+      {!telegramLinked && (
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <MessageCircle size={24} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg mb-1">Conecta Telegram</h3>
+              <p className="text-sm opacity-90 mb-4">
+                Registra gastos con tu voz. Di "gasté 50 en comida" y el bot lo guarda.
+              </p>
+              <button 
+                onClick={() => router.push('/ajustes')}
+                className="bg-white text-indigo-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2"
+              >
+                Configurar Bot
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chart */}
       <CategoryChart />
