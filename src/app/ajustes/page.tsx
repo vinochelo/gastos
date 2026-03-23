@@ -126,9 +126,7 @@ export default function AjustesPage() {
   };
 
   const getTelegramLink = () => {
-    if (!linkingCode) return "";
-    const command = `/vincular ${linkingCode}`;
-    return `https://t.me/${TELEGRAM_BOT_USERNAME}?text=${encodeURIComponent(command)}`;
+    return `https://t.me/${TELEGRAM_BOT_USERNAME}`;
   };
 
   const addCategories = async () => {
@@ -267,7 +265,7 @@ export default function AjustesPage() {
 
             <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 text-xs">
               <p className="font-semibold mb-2 text-blue-700 dark:text-blue-400">⏰ Expira en 5 minutos</p>
-              <p className="opacity-70">Presiona "Ir al Bot" para abrir Telegram con el comando.</p>
+              <p className="opacity-70">1. Copia el código<br/>2. Abre el bot y pégalo</p>
             </div>
 
             <button 
