@@ -44,6 +44,13 @@ export default function CategoryChart() {
     );
   }
 
+  const formatAmount = (amount: number) => {
+    if (amount >= 1000) {
+      return amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    return amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
       {/* Header */}
@@ -78,7 +85,7 @@ export default function CategoryChart() {
         <div className="relative h-72 w-72 flex-shrink-0">
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
             <p className="text-xs font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
-            <p className="text-3xl font-bold">${(total / 1000).toFixed(1)}k</p>
+            <p className="text-3xl font-bold">${formatAmount(total)}</p>
           </div>
           
           <ResponsiveContainer width="100%" height="100%">
@@ -105,7 +112,7 @@ export default function CategoryChart() {
         {/* Legend */}
         <div className="flex-1 space-y-0">
           {categoryData.map((entry, index: number) => {
-            const percentage = ((entry.value / total) * 100).toFixed(0);
+            const percentage = ((entry.value / total) * 100).toFixed(1);
             
             return (
               <div 
@@ -120,8 +127,8 @@ export default function CategoryChart() {
                   <span className="text-sm font-medium">{entry.name}</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium opacity-60">${entry.value.toLocaleString('es-ES', { minimumFractionDigits: 0 })}</span>
-                  <span className="text-base font-bold w-12 text-right">{percentage}%</span>
+                  <span className="text-sm font-medium opacity-60">${formatAmount(entry.value)}</span>
+                  <span className="text-base font-bold w-14 text-right">{percentage}%</span>
                 </div>
               </div>
             );

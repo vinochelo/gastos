@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Telegraf } from "telegraf";
 import admin from "firebase-admin";
 import { adminDb } from "@/lib/firebase-admin";
-import { transcribeAudio, parseTransaction } from "@/services/groq";
+import { transcribeAudio, parseTransaction, getHelpMessage } from "@/services/groq";
 import axios from "axios";
 import fs from "fs";
 import path from "path";
@@ -17,8 +17,8 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
     const accountsSnap = await adminDb.collection("accounts").where("userId", "==", userId).get();
     const accountNames = accountsSnap.docs.map(d => d.data().nombre);
 
-    if (isAudio) ctx.reply("🤖 Analizando lo que dijiste...");
-    else ctx.reply("🤖 Procesando con IA...");
+    if (isAudio) ctx.reply("🤖 Analizando...");
+    else ctx.reply("🤖 Procesando...");
 
     const result = await parseTransaction(
       userInput, 
@@ -28,13 +28,17 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
     );
 
     if (!result.items || result.items.length === 0) {
-      return ctx.reply("🤔 ¿Qué deseas hacer? No pude detectar una acción clara.");
+      return ctx.reply("🤔 No entendí. " + getHelpMessage());
     }
 
     const batch = adminDb.batch();
     const results: string[] = [];
 
     for (const item of result.items) {
+      if (item.tipo === "ayuda") {
+        return ctx.reply(getHelpMessage());
+      }
+      
       if (!item.monto && item.tipo !== "consulta_saldo") continue;
       const monto = Math.abs(item.monto);
       
