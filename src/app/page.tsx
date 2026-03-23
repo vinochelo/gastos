@@ -13,16 +13,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 
-const getCreatedAt = (tx: Transaction): number => {
-  const ts = tx.createdAt;
-  if (!ts) return 0;
-  if (ts instanceof Date) return ts.getTime();
-  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
-    return ts.toDate().getTime();
-  }
-  return 0;
-};
-
 export default function Dashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -49,9 +39,7 @@ export default function Dashboard() {
     return { income, expense, totalBalance };
   }, [transactions, accounts]);
 
-  const recentTransactions = useMemo(() => {
-    return [...transactions].sort((a, b) => getCreatedAt(b) - getCreatedAt(a));
-  }, [transactions]);
+  const recentTransactions = transactions;
 
   if (loading) return (
     <div className="flex h-64 items-center justify-center">

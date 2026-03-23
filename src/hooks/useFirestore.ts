@@ -65,7 +65,7 @@ export function useRecentTransactions(limitCount = 10) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const getTimestamp = (ts: unknown): number => {
+  const getTimestampValue = (ts: unknown): number => {
     if (!ts) return 0;
     if (ts instanceof Date) return ts.getTime();
     if (typeof ts === 'object' && 'toDate' in ts && typeof (ts as { toDate: () => Date }).toDate === 'function') {
@@ -78,13 +78,6 @@ export function useRecentTransactions(limitCount = 10) {
       }
     }
     return 0;
-  };
-
-  const getCreatedAt = (tx: Transaction): number => {
-    if (tx.createdAt) {
-      return getTimestamp(tx.createdAt);
-    }
-    return getTimestamp(tx.timestamp);
   };
 
   useEffect(() => {
@@ -102,7 +95,7 @@ export function useRecentTransactions(limitCount = 10) {
       const q = query(
         collection(db, "transactions"),
         where("userId", "==", user.uid),
-        orderBy("createdAt", "desc"),
+        orderBy("timestamp", "desc"),
         limit(limitCount)
       );
       unsubscribeFirestore = onSnapshot(q, (snapshot) => {
@@ -111,7 +104,6 @@ export function useRecentTransactions(limitCount = 10) {
           tx.id = doc.id;
           return tx;
         });
-        data.sort((a, b) => getCreatedAt(b) - getCreatedAt(a));
         setTransactions(data);
         setLoading(false);
       });
