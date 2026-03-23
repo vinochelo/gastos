@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useAccounts, useRecentTransactions, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, User, LogOut, Trash2, Wallet } from "lucide-react";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, User, Trash2, Wallet, Settings } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
+import EditTransactionModal from "@/components/EditTransactionModal";
 import CategoryChart from "@/components/CategoryChart";
 import { auth, db } from "@/lib/firebase";
 import { deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -66,29 +68,39 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
-          <h1 className="text-2xl font-bold tracking-tight">Buenos días</h1>
         </div>
-        <button 
-          onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-          className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
-        >
-          <User size={16} className="opacity-50" />
-        </button>
-        
-        {isUserMenuOpen && (
-          <div className="absolute right-4 top-16 w-48 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-lg border border-gray-100 dark:border-gray-700 z-50">
-            <p className="text-xs opacity-40 mb-2 truncate">{user.email}</p>
-            <button 
-              onClick={() => logout()}
-              className="w-full flex items-center gap-2 p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium"
-            >
-              <LogOut size={14} /> Cerrar sesión
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => router.push('/ajustes')}
+            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+          >
+            <Settings size={16} className="opacity-50" />
+          </button>
+          <button 
+            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+          >
+            <User size={16} className="opacity-50" />
+          </button>
+          
+          {isUserMenuOpen && (
+            <div className="absolute right-4 top-16 w-48 bg-white dark:bg-gray-800 rounded-xl p-3 shadow-lg border border-gray-100 dark:border-gray-700 z-50">
+              <p className="text-xs opacity-40 mb-2 truncate">{user.email}</p>
+              <button 
+                onClick={() => { logout(); router.push('/ajustes'); }}
+                className="w-full flex items-center gap-2 p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium"
+              >
+                <Trash2 size={14} /> Cerrar sesión
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Balance */}
+      {/* Chart - MAIN */}
+      <CategoryChart />
+
+      {/* Balance - bajo el chart */}
       <div className="flex gap-3">
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
@@ -99,9 +111,6 @@ export default function Dashboard() {
           <p className="text-xl font-bold tracking-tight text-red-500">-${stats.expense.toFixed(2)}</p>
         </div>
       </div>
-
-      {/* Chart - MAIN */}
-      <CategoryChart />
 
       {/* Accounts */}
       <div>
@@ -133,10 +142,14 @@ export default function Dashboard() {
           {transactions.slice(0, 5).map((tx) => (
             <div key={tx.id} className="bg-white dark:bg-gray-800 rounded-xl p-3 flex items-center justify-between border border-gray-100 dark:border-gray-700 group">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                   tx.tipo === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
                 }`}>
-                  {tx.tipo === 'ingreso' ? <TrendingUp size={14} className="text-green-600" /> : <TrendingDown size={14} className="opacity-60" />}
+                  {tx.tipo === 'ingreso' ? (
+                    <TrendingUp size={18} className="text-green-600" />
+                  ) : (
+                    <Wallet size={18} className="opacity-60" />
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
@@ -147,6 +160,12 @@ export default function Dashboard() {
                 <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
                   {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toFixed(2)}
                 </p>
+                <button 
+                  onClick={() => setEditingTx(tx)}
+                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg"
+                >
+                  <Settings size={12} className="text-blue-500" />
+                </button>
                 <button 
                   onClick={() => handleDeleteTx(tx)}
                   className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
@@ -177,6 +196,13 @@ export default function Dashboard() {
 
       <AddTransactionModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
       <TransferModal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} />
+      {editingTx && (
+        <EditTransactionModal 
+          isOpen={!!editingTx} 
+          onClose={() => setEditingTx(null)} 
+          transaction={editingTx} 
+        />
+      )}
     </div>
   );
 }

@@ -10,8 +10,9 @@ interface CategoryData {
 }
 
 const COLORS = [
-  '#6366f1', '#8b5cf6', '#a78bfa', '#818cf8', 
-  '#c4b5fd', '#7c3aed', '#6d28d9', '#5b21b6',
+  '#6366f1', '#ec4899', '#f59e0b', '#10b981', 
+  '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16',
+  '#f97316', '#14b8a6', '#a855f7', '#3b82f6',
 ];
 
 export default function CategoryChart() {
@@ -37,7 +38,7 @@ export default function CategoryChart() {
 
   if (transactions.length === 0 || categoryData.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-10 text-center border border-gray-100 dark:border-gray-700">
         <p className="text-base opacity-40">Sin datos de {activeType}s</p>
       </div>
     );
@@ -74,18 +75,18 @@ export default function CategoryChart() {
 
       {/* Chart grande */}
       <div className="flex items-center gap-10">
-        <div className="relative h-64 w-64 flex-shrink-0">
+        <div className="relative h-72 w-72 flex-shrink-0">
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
             <p className="text-xs font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
-            <p className="text-2xl font-bold">${(total / 1000).toFixed(1)}k</p>
+            <p className="text-3xl font-bold">${(total / 1000).toFixed(1)}k</p>
           </div>
           
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={categoryData}
-                innerRadius={55}
-                outerRadius={100}
+                innerRadius={65}
+                outerRadius={115}
                 paddingAngle={2}
                 dataKey="value"
               >

@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
-import { Send, Bot, Trash2, Plus, X, TrendingDown, TrendingUp } from "lucide-react";
+import { Send, Bot, LogOut, Plus, X, TrendingDown, TrendingUp, ChevronLeft } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
+import { useRouter } from "next/navigation";
 
 export default function AjustesPage() {
   const [telegramId, setTelegramId] = useState("");
@@ -17,6 +18,7 @@ export default function AjustesPage() {
   const [loading, setLoading] = useState(false);
   const [userDoc, setUserDoc] = useState<UserConfig | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -26,8 +28,7 @@ export default function AjustesPage() {
           const data = snap.data() as UserConfig;
           setUserDoc(data);
           setTelegramId(data.telegramId || "");
-          // Migración o carga de datos
-          setExpenseCategories(data.expenseCategories || data.categories || DEFAULT_CATEGORIES);
+          setExpenseCategories(data.expenseCategories || DEFAULT_CATEGORIES);
           setIncomeCategories(data.incomeCategories || ["Salario", "Inversion", "Regalo", "Otro"]);
         } else {
           setExpenseCategories(DEFAULT_CATEGORIES);
@@ -35,15 +36,13 @@ export default function AjustesPage() {
         }
       } else {
         setUserDoc(null);
-        setTelegramId("");
-        setExpenseCategories([]);
-        setIncomeCategories([]);
+        router.push('/login');
       }
       setAuthLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const saveTelegramId = async () => {
     if (!auth.currentUser) return;
@@ -52,9 +51,9 @@ export default function AjustesPage() {
       await updateDoc(doc(db, "users", auth.currentUser.uid), {
         telegramId: telegramId
       });
-      alert("✅ ¡Telegram ID guardado!");
+      alert("¡Telegram ID guardado!");
     } catch {
-      alert("❌ Error al guardar.");
+      alert("Error al guardar.");
     } finally {
       setLoading(false);
     }
@@ -89,83 +88,73 @@ export default function AjustesPage() {
     } catch (e) { console.error(e); }
   };
 
-  const deleteAccount = async () => {
-    if (!confirm("¿Estás seguro de eliminar tu cuenta?")) return;
+  const handleLogout = async () => {
+    if (!confirm("¿Cerrar sesión?")) return;
+    await auth.signOut();
+    router.push('/login');
   };
 
   if (authLoading) return (
-    <div className="flex h-[50vh] items-center justify-center">
-      <Bot size={48} className="text-primary animate-bounce opacity-20" />
+    <div className="flex h-screen items-center justify-center">
+      <div className="w-6 h-6 rounded-full bg-gray-200 animate-pulse" />
     </div>
   );
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 pb-20">
-      <header className="py-4">
-        <h1 className="text-4xl font-black italic tracking-tighter">AJUSTES</h1>
-        <p className="text-foreground/40 font-bold uppercase text-[10px] tracking-[0.3em]">Configura tu ecosistema financiero</p>
-      </header>
+    <div className="space-y-6 pb-28">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button 
+          onClick={() => router.push('/')}
+          className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+        >
+          <ChevronLeft size={18} className="opacity-50" />
+        </button>
+        <div>
+          <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
+          <h1 className="text-2xl font-bold tracking-tight">Ajustes</h1>
+        </div>
+      </div>
 
-      {/* Telegram ID */}
-      <section className="glass p-8 rounded-[3rem] space-y-6 shadow-2xl relative overflow-hidden group border-white/5">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full" />
-        <div className="flex items-center gap-4 text-primary relative">
-          <Bot size={32} />
-          <h2 className="text-xl font-black italic uppercase tracking-tight">Conectar con Telegram</h2>
+      {/* Telegram */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-2 mb-4">
+          <Bot size={18} className="opacity-50" />
+          <h2 className="text-base font-semibold">Telegram</h2>
         </div>
-        <div className="bg-primary/5 p-5 rounded-3xl border border-primary/10 relative">
-          <p className="text-[10px] font-black text-primary/50 uppercase tracking-widest mb-1">Tu Telegram ID</p>
-          <p className="text-2xl font-mono font-black italic">{userDoc?.telegramId || "SIN VINCULAR"}</p>
+        <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-xl mb-4">
+          <p className="text-xs font-medium opacity-60 mb-2">Tu Telegram ID:</p>
+          <p className="text-lg font-bold font-mono">{userDoc?.telegramId || "No vinculado"}</p>
         </div>
-        
-        {/* Instrucciones claras */}
-        <div className="bg-blue-500/5 p-5 rounded-3xl border border-blue-500/10 space-y-3">
-          <p className="text-[10px] font-black text-blue-500/50 uppercase tracking-widest">Cómo obtener tu ID:</p>
-          <ol className="space-y-2 text-sm">
-            <li className="flex gap-3 items-start">
-              <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-              <span>Abre Telegram y busca <span className="font-mono bg-white/50 px-1 rounded">@userinfobot</span></span>
-            </li>
-            <li className="flex gap-3 items-start">
-              <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-              <span>Envía cualquier mensaje al bot</span>
-            </li>
-            <li className="flex gap-3 items-start">
-              <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
-              <span>El bot te mostrará tu ID (número largo)</span>
-            </li>
-            <li className="flex gap-3 items-start">
-              <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">4</span>
-              <span>Copia ese número y pégalo aquí abajo</span>
-            </li>
-          </ol>
-        </div>
-        
-        <div className="flex gap-2 relative">
+        <div className="flex gap-2">
           <input 
             type="text"
             value={telegramId}
             onChange={(e) => setTelegramId(e.target.value)}
-            placeholder="Pega aquí tu Telegram ID..."
-            className="flex-1 glass border-none p-5 rounded-2xl focus:ring-4 ring-primary/20 font-bold italic"
+            placeholder="Ingresa tu Telegram ID..."
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none p-3 rounded-xl text-sm"
           />
-          <button onClick={saveTelegramId} disabled={loading} className="bg-primary text-white p-5 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">
-            <Send size={24} />
+          <button 
+            onClick={saveTelegramId} 
+            disabled={loading} 
+            className="bg-foreground text-background px-4 rounded-xl font-medium text-sm"
+          >
+            <Send size={16} />
           </button>
         </div>
-      </section>
+        <p className="text-xs opacity-40 mt-2">Busca @userinfobot en Telegram para obtener tu ID</p>
+      </div>
 
-      {/* Categorías Gastos */}
-      <section className="glass p-8 rounded-[3rem] space-y-6 border-red-500/10 hover:border-red-500/20 transition-colors shadow-2xl">
-        <div className="flex items-center gap-4 text-red-500">
-          <TrendingDown size={32} />
-          <h2 className="text-xl font-black italic uppercase tracking-tight">Categorías de Gasto</h2>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      {/* Categories */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
+        <h2 className="text-base font-semibold mb-4">Categorías de Gastos</h2>
+        <div className="flex flex-wrap gap-2 mb-4">
           {expenseCategories.map((cat) => (
-            <div key={cat} className="bg-red-500/5 p-3 px-5 rounded-2xl flex items-center gap-3 group border border-transparent hover:border-red-500/30 transition-all">
-              <span className="text-xs font-black uppercase tracking-tight italic opacity-60 group-hover:opacity-100">{cat}</span>
-              <button onClick={() => removeCategory('expense', cat)} className="opacity-20 group-hover:opacity-100 hover:text-red-500 transition-all"><X size={14}/></button>
+            <div key={cat} className="bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-2">
+              <span className="text-sm font-medium">{cat}</span>
+              <button onClick={() => removeCategory('expense', cat)} className="opacity-40 hover:opacity-100">
+                <X size={14} />
+              </button>
             </div>
           ))}
         </div>
@@ -173,26 +162,27 @@ export default function AjustesPage() {
           <input 
             value={newExpCat}
             onChange={(e) => setNewExpCat(e.target.value)}
-            placeholder="Nuevo Gasto..."
-            className="flex-1 glass border-none p-5 rounded-2xl focus:ring-4 ring-red-500/10 font-bold italic"
+            placeholder="Nueva categoría..."
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none p-3 rounded-xl text-sm"
           />
-          <button onClick={() => addCategory('expense', newExpCat)} className="bg-red-500 text-white p-5 rounded-2xl shadow-lg hover:scale-105 transition-all">
-            <Plus size={24} />
+          <button 
+            onClick={() => addCategory('expense', newExpCat)} 
+            className="bg-gray-100 dark:bg-gray-700 px-4 rounded-xl"
+          >
+            <Plus size={16} />
           </button>
         </div>
-      </section>
+      </div>
 
-      {/* Categorías Ingresos */}
-      <section className="glass p-8 rounded-[3rem] space-y-6 border-green-500/10 hover:border-green-500/20 transition-colors shadow-2xl">
-        <div className="flex items-center gap-4 text-green-500">
-          <TrendingUp size={32} />
-          <h2 className="text-xl font-black italic uppercase tracking-tight">Categorías de Ingreso</h2>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700">
+        <h2 className="text-base font-semibold mb-4">Categorías de Ingresos</h2>
+        <div className="flex flex-wrap gap-2 mb-4">
           {incomeCategories.map((cat) => (
-            <div key={cat} className="bg-green-500/5 p-3 px-5 rounded-2xl flex items-center gap-3 group border border-transparent hover:border-green-500/30 transition-all">
-              <span className="text-xs font-black uppercase tracking-tight italic opacity-60 group-hover:opacity-100">{cat}</span>
-              <button onClick={() => removeCategory('income', cat)} className="opacity-20 group-hover:opacity-100 hover:text-green-500 transition-all"><X size={14}/></button>
+            <div key={cat} className="bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-2">
+              <span className="text-sm font-medium">{cat}</span>
+              <button onClick={() => removeCategory('income', cat)} className="opacity-40 hover:opacity-100">
+                <X size={14} />
+              </button>
             </div>
           ))}
         </div>
@@ -200,25 +190,25 @@ export default function AjustesPage() {
           <input 
             value={newIncCat}
             onChange={(e) => setNewIncCat(e.target.value)}
-            placeholder="Nuevo Ingreso..."
-            className="flex-1 glass border-none p-5 rounded-2xl focus:ring-4 ring-green-500/10 font-bold italic"
+            placeholder="Nueva categoría..."
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none p-3 rounded-xl text-sm"
           />
-          <button onClick={() => addCategory('income', newIncCat)} className="bg-green-500 text-white p-5 rounded-2xl shadow-lg hover:scale-105 transition-all">
-            <Plus size={24} />
+          <button 
+            onClick={() => addCategory('income', newIncCat)} 
+            className="bg-gray-100 dark:bg-gray-700 px-4 rounded-xl"
+          >
+            <Plus size={16} />
           </button>
         </div>
-      </section>
+      </div>
 
-      {/* Zona Peligrosa */}
-      <section className="glass p-8 rounded-[3rem] space-y-4 opacity-50 hover:opacity-100 transition-all border-dashed border-2 border-red-500/10">
-        <div className="flex items-center gap-4 text-red-500">
-           <Trash2 size={24} />
-           <h2 className="text-md font-black italic uppercase tracking-tighter">Zona Crítica</h2>
-        </div>
-        <button onClick={deleteAccount} className="w-full bg-red-500/5 text-red-500 py-4 rounded-3xl font-black italic hover:bg-red-500 hover:text-white transition-all">
-          Cerrar Cuenta Definitivamente
-        </button>
-      </section>
+      {/* Logout */}
+      <button 
+        onClick={handleLogout}
+        className="w-full bg-red-50 dark:bg-red-950/30 text-red-500 py-4 rounded-xl font-medium text-sm flex items-center justify-center gap-2"
+      >
+        <LogOut size={16} /> Cerrar Sesión
+      </button>
     </div>
   );
 }

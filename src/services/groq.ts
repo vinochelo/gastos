@@ -3,9 +3,6 @@ import fs from "fs";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const DEFAULT_EXPENSES = ["Comida", "Transporte", "Hogar", "Ocio", "Salud", "Educación", "Tecnología", "Ropa", "Regalos", "Mascotas", "Viajes", "Deudas", "Otros", "Golosinas", "Víveres", "Juegos", "Juguetes"];
-const DEFAULT_INCOMES = ["Salario", "Venta", "Inversión", "Regalo", "Otros Ingresos"];
-
 export async function transcribeAudio(filePath: string) {
   const transcription = await groq.audio.transcriptions.create({
     file: fs.createReadStream(filePath),
@@ -17,66 +14,88 @@ export async function transcribeAudio(filePath: string) {
 }
 
 export async function parseTransaction(text: string, accountNames: string[], userExpCats?: string[], userIncCats?: string[]) {
-  const expCats = userExpCats || DEFAULT_EXPENSES;
-  const incCats = userIncCats || DEFAULT_INCOMES;
+  const expCats = userExpCats?.length ? userExpCats : ["Casa", "Cine", "Comida", "Compras Ecommerce", "Comunicaciones", "Deportes", "Costos Bancarios", "Desayunos", "Restaurantes", "Entretenimiento", "Higiene", "IVA Electronico", "Juegos", "Mascotas", "Regalos", "Ropa", "Salud", "Servicios Basicos", "Streaming", "Taxi/Uber", "Transporte"];
+  const incCats = userIncCats?.length ? userIncCats : ["Salario", "Inversion", "Regalo", "Otro"];
   const now = new Date();
   const dateStr = now.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const prompt = `
-    Eres un asistente contable experto. Fecha actual: ${dateStr}.
-    Tu tarea es extraer información financiera de un texto en español.
-    
-    CAPACIDADES:
-    1. Registrar transacciones (gasto, ingreso, transferencia).
-    2. RECLASIFICAR: Si el usuario quiere cambiar la categoría de algo ya registrado. Ej: "Pasa los 4.5 de juegos a juguetes".
-    3. FECHAS: Interpreta si fue "hoy", "ayer", "el lunes pasado", "hace 3 días", etc., y calcula la fecha exacta basándote en que hoy es ${dateStr}.
-    4. CONSULTAR SALDO: Si el usuario pregunta por el saldo de una o varias cuentas, o dice "mi saldo", "cuánto tengo", "balances", "saldos", etc.
-       - Si menciona una cuenta específica (ej: "saldo de efectivo", "cuánto tengo en banco"), devuelve tipo: "consulta_saldo" con la cuenta.
-       - Si dice "todas", "todos", "todo", "todos los saldos", "mi balance", devuelve tipo: "consulta_saldo" con cuenta: "todas".
-       - Soporta variaciones como "cuánto dinero tengo", "dime mi saldo", "balance de mis cuentas", "cuál es mi situación", "estado de cuenta".
-    5. CONSULTAR GASTOS POR CATEGORÍA: Si el usuario pregunta cuánto gastó en algo específico, ej: "cuánto gasté en transporte", "gastos en comida", "cuánto pagué en servicios", "gastos del mes en salud".
-       - Detecta la categoría mentioned y devuelve tipo: "consulta_gasto_categoria" con la categoría.
-       - Soporta palabras como "gasté", "gastos", "pagué", "pago", "cuánto", "cuánta" + nombre de categoría.
-    6. REVERTIR TRANSACCIÓN: Si el usuario quiere cancelar, borrar o revertir una transacción. Ej: "borra el gasto de 50", "cancela la compra de 200", "revierte el ingreso de 1000".
-       - Detecta el monto a revertir y devuelve tipo: "reverso" con el monto y la cuenta.
-       - La cuenta es opcional: si no la especifica, busca en todas las cuentas la transacción más reciente con ese monto.
+Eres un asistente contable experto en español latinoamericano. Fecha actual: ${dateStr}.
+El usuario te envía un mensaje sobre sus finanzas personales. Tu trabajo es entender QUÉ QUIERE HACER y extraer los datos.
 
-    REGLAS DE CLASIFICACIÓN:
-    - "Golosinas": Pastel, dulces, snacks.
-    - "Víveres": Alimentos básicos, súper.
-    
-    TEXTO: "${text}"
-    CUENTAS DISPONIBLES: ${accountNames.join(", ")}
-    CATEGORÍAS DE GASTO: ${expCats.join(", ")}
-    CATEGORÍAS DE INGRESO: ${incCats.join(", ")}
-    
-    Responde ÚNICAMENTE con un JSON con la estructura:
+**COMPRENSIÓN AMPLIADA:**
+- Reconoce variaciones comunes: "gasté", "gaste", "pagué", "pague", "pago", "coloqué", "coloqué", "invertí", "metí"
+- Reconoce expresiones informales: "me compré", "me compré", "saqué", "saque", "echen", "eche", "mandé", "mande"
+- Si el usuario escribe solo un monto como "50" o "$50", asum[e que es un gasto
+- Si dice "ingresé" o "recibí" seguido de monto, asum[e que es un ingreso
+- Detecta negaciones: "no fue" "no era" "no lo hice" - puede ser que quiera revertir algo
+
+**CAPACIDADES:**
+1. **REGISTRAR GASTO**: "gasté 50 en almuerzo", "pagué 20 de taxi", "me compré algo de 100"
+   - Detecta montos: números solos, con $, con "pesos", decimales opcional
+   - Detecta categoría: lo que sigue después de "en", "de", "para"
+   
+2. **REGISTRAR INGRESO**: "recibí 500 de salaryo", "ingresé 1000", "me entró un pago de 200"
+   - Detecta palabras como: "recibí", "ingresé", "me entró", "me llegó", "entró", "caí", "cae"
+   
+3. **REGISTRAR TRANSFERENCIA**: "transferí 200 de mi cuenta al banco", "mover 500 de banco a efectivo"
+
+4. **REVERTIR/CANCELAR**: "borra eso", "no, era 100 no 200", "cancela el gasto", "elimina eso", "no era gasto"
+   - Si detecta arrepentimiento o corrección, marca como "reverso"
+   - Si dice monto específico: "borra el de 50"
+
+5. **RECLASIFICAR**: "era comida no cine", "me equivoqué era transporte", "pasa eso a juegos"
+   - Detecta que quiere cambiar categoría de algo ya registrado
+
+6. **CONSULTAR SALDO**: "cuánto tengo", "mi saldo", "cuánto hay en la cuenta", "balances", "qué tal"
+   - Si menciona cuenta específica: "cuánto hay en efectivo"
+
+7. **CONSULTAR GASTOS**: "cuánto gasté esta semana", "qué gasté en comer", "mis gastos del mes"
+   - Detecta períodos: "esta semana", "este mes", "hoy", "ayer", "la semana pasada"
+
+**CATEGORÍAS DEL USUARIO:**
+Gastos: ${expCats.join(", ")}
+Ingresos: ${incCats.join(", ")}
+
+**CUENTAS DISPONIBLES:**
+${accountNames.join(", ")}
+
+**INSTRUCCIONES DE RESPUESTA:**
+Responde SOLO con JSON válido, sin explicaciones adicionales.
+El JSON debe tener esta estructura exacta:
+{
+  "items": [
     {
-      "items": [
-        {
-          "monto": number,
-          "categoria": string (nueva categoría o categoría del gasto),
-          "categoriaAnterior": string (solo para reclasificar),
-          "cuenta": string,
-          "fromCuenta": string,
-          "toCuenta": string,
-          "descripcion": string,
-          "tipo": "gasto" | "ingreso" | "transferencia" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria" | "reverso",
-          "fecha": "YYYY-MM-DD" (calculada según el texto, defecto hoy)
-        }
-      ]
+      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria",
+      "monto": número (obligatorio para gasto/ingreso/transferencia/reverso),
+      "categoria": "categoría detectada" (obligatorio para gastos),
+      "cuenta": "cuenta donde se hizo" (opcional, detecta si se menciona),
+      "descripcion": "descripción o lo que escribió el usuario" (opcional),
+      "fecha": "YYYY-MM-DD" (calculada si menciona "hoy", "ayer", etc., si no pone "hoy")
     }
-  `;
+  ]
+}
+
+Si no puedes entender qué quiere hacer, devuelve {"items": []} con items vacío.
+Si es solo una pregunta/saludo que no implica acción, devuelve {"items": []}.
+
+**MENSAJE DEL USUARIO:**
+"${text}"
+`;
 
   const completion = await groq.chat.completions.create({
     messages: [
-      { role: "system", content: "Analista financiero preciso. Siempre respondes con JSON puro (un objeto con 'items')." },
+      { role: "system", content: "Eres un parser de intenciones financieras. Solo devuelves JSON puro y válido." },
       { role: "user", content: prompt }
     ],
     model: "llama-3.3-70b-versatile",
     response_format: { type: "json_object" },
-    temperature: 0.1,
+    temperature: 0.2,
   });
 
-  return JSON.parse(completion.choices[0].message.content || '{"items": []}');
+  try {
+    return JSON.parse(completion.choices[0].message.content || '{"items": []}');
+  } catch {
+    return { items: [] };
+  }
 }
