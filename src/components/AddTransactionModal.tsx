@@ -33,10 +33,10 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   }, [isOpen, defaultType]);
 
   useEffect(() => {
-    if (categories.length > 0 && !category) {
+    if (isOpen && categories.length > 0 && !category) {
       setCategory(categories[0]);
     }
-  }, [categories, category]);
+  }, [isOpen, categories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
