@@ -15,7 +15,11 @@ export default function TransferModal({ isOpen, onClose }: { isOpen: boolean, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser || !amount || !fromId || !toId || fromId === toId) return;
+    if (!auth.currentUser) {
+      alert("Sesión expirada. Por favor, recarga la página.");
+      return;
+    }
+    if (!amount || !fromId || !toId || fromId === toId) return;
 
     setLoading(true);
     try {

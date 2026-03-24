@@ -40,7 +40,11 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser || !amount || !accountId) return;
+    if (!auth.currentUser) {
+      alert("Sesión expirada. Por favor, recarga la página.");
+      return;
+    }
+    if (!amount || !accountId) return;
 
     const monto = parseFloat(amount);
     if (isNaN(monto) || monto <= 0) {
