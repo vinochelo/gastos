@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Telegraf } from "telegraf";
 import admin from "firebase-admin";
 import { adminDb } from "@/lib/firebase-admin";
-import { transcribeAudio, parseTransaction, getHelpMessage } from "@/services/groq";
+import { transcribeAudio, parseTransaction, getHelpMessage, analyzeReceipt } from "@/services/groq";
 import axios from "axios";
 import fs from "fs";
 import path from "path";
@@ -424,7 +424,124 @@ bot.on("voice", async (ctx) => {
      ctx.reply(`📝 "${transcription}"`);
      await processIncomingTransaction(ctx, userId, transcription, true);
      try { fs.unlinkSync(tempPath); } catch { /* ignore */ }
-  } catch { ctx.reply("❌ Error de audio."); }
+   } catch { ctx.reply("❌ Error de audio."); }
+});
+
+bot.on("photo", async (ctx) => {
+  const telegramId = ctx.from.id.toString();
+  try {
+     const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
+     if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
+     
+     const userId = userSnap.docs[0].id;
+     const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Get highest resolution
+     const fileId = photo.file_id;
+
+     ctx.reply("📸 Analizando factura...");
+
+     const fileLink = await bot.telegram.getFileLink(fileId);
+     const imageUrl = fileLink.toString();
+
+     const result = await analyzeReceipt(imageUrl);
+
+     if (result.error) {
+       return ctx.reply(`❌ ${result.error}. Intenta de nuevo o describe el gasto manualmente.`);
+     }
+
+     // Guardar datos temporales en un objeto global (en memoria) o en Firestore si se quiere persistencia
+     // Por ahora, usaremos un Map global en memoria (Nota: en producción esto se debe manejar mejor, ej. con contexto de callback)
+     const tempData = {
+       userId,
+       monto: result.monto,
+       categoria: result.categoria,
+       descripcion: result.descripcion,
+       fuente: "telegram_photo"
+     };
+     
+     // Usaremos un Map simple para guardar el contexto (en memoria del servidor)
+     // Nota: En un entorno serverless esto es tricky, pero para este caso sirve de ejemplo.
+     // Si esto falla,-usaremos el callback query.
+     
+     const message = `📝 *Datos detectados:*\n\n💰 Monto: $${result.monto}\n📂 Categoría: ${result.categoria}\n📄 Descripción: ${result.descripcion}\n\n¿Confirmas el registro?`;
+
+     //Responder con botones inline
+     ctx.reply(message, {
+       reply_markup: {
+         inline_keyboard: [
+           [
+             { text: "✅ Confirmar", callback_data: `confirm_receipt_${JSON.stringify(tempData).replace(/"/g, "'")}` },
+             { text: "❌ Cancelar", callback_data: "cancel_receipt" }
+           ]
+         ]
+       }
+     });
+
+  } catch (error) {
+    console.error("Error processing photo:", error);
+    ctx.reply("❌ Error al procesar la foto. Intenta de nuevo.");
+  }
+});
+
+// Store para confirmar transacciones de facturas (en memoria)
+const pendingReceipts = new Map();
+
+bot.on("callback_query", async (ctx) => {
+  const callbackData = (ctx.callbackQuery as any).data;
+  if (!callbackData) return;
+  
+  const telegramId = ctx.from.id.toString();
+
+  if (callbackData.startsWith("confirm_receipt_")) {
+    try {
+      const dataStr = callbackData.replace("confirm_receipt_", "").replace(/'/g, '"');
+      const data = JSON.parse(dataStr);
+      
+      const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
+      if (userSnap.empty) return ctx.answerCbQuery("Error: Usuario no vinculado.");
+      
+      const userId = userSnap.docs[0].id;
+      const accountsSnap = await adminDb.collection("accounts").where("userId", "==", userId).get();
+      
+      if (accountsSnap.empty) {
+        ctx.answerCbQuery("❌ No tienes cuentas.");
+        return ctx.reply("⚠️ No tienes cuentas registradas.");
+      }
+
+      // Buscar cuenta Efectivo o usar la primera
+      let accountDoc = accountsSnap.docs.find(d => d.data().nombre.toLowerCase().includes("efectivo"));
+      if (!accountDoc) accountDoc = accountsSnap.docs[0];
+
+      const monto = Math.abs(data.monto);
+      const batch = adminDb.batch();
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+      batch.set(adminDb.collection("transactions").doc(), {
+        userId,
+        monto,
+        tipo: "gasto",
+        accountId: accountDoc.id,
+        categoria: data.categoria || "Varios",
+        descripcion: data.descripcion || "Factura",
+        timestamp,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        fuente: "telegram_photo"
+      });
+
+      batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(-monto) });
+
+      await batch.commit();
+
+      ctx.answerCbQuery("✅ Registrado!");
+      ctx.editMessageText(`✅ *Gasto Registrado:*\n\n💰 $${monto} en ${data.categoria}\n📂 ${data.descripcion}`, { parse_mode: "Markdown" });
+
+    } catch (error) {
+      console.error("Error confirming receipt:", error);
+      ctx.answerCbQuery("❌ Error al confirmar.");
+    }
+  } else if (callbackData === "cancel_receipt") {
+    ctx.answerCbQuery("Cancelado");
+    ctx.editMessageText("❌ Cancelado.");
+  }
 });
 
 export async function POST(req: NextRequest) {

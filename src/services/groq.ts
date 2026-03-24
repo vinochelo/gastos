@@ -121,31 +121,73 @@ Si el mensaje es solo un saludo o no puedes entender qué quiere hacer, devuelve
 export function getHelpMessage(): string {
   return `🤖 *Puedo ayudarte con:*
 
-📝 *Registrar gastos:*
+ 📝 *Registrar gastos:*
 "gasté 50 en comida"
 "pagué 20 de taxi"
 
-💰 *Registrar ingresos:*
+ 💰 *Registrar ingresos:*
 "recibí 500 de salario"
 "ingresé 1000"
 
-💼 *Ver saldos:*
+ 💼 *Ver saldos:*
 "mi saldo"
 "cuánto tengo"
 
-📊 *Gastos por categoría:*
+ 📊 *Gastos por categoría:*
 "cuánto gasté en transporte"
 "mis gastos del mes"
 
-❌ *Eliminar transacciones:*
+ ❌ *Eliminar transacciones:*
 "borra el gasto de 100"
 
-📅 *Con fecha específica:*
+ 📅 *Con fecha específica:*
 "ayer gasté 30"
 "el lunes pagué 50"
 
-🌐 *Acceder a la web:*
+ 🌐 *Acceder a la web:*
 "dame el link" | "cómo entro a la app" | "la página web"
 
+ 📸 *Escanear facturas:*
+"Envía una foto de tu ticket o factura y la analizaré automáticamente."
+
 ¡Escríbeme cualquier cosa y haré mi mejor esfuerzo!`;
+}
+
+export async function analyzeReceipt(imageUrl: string) {
+  const prompt = `
+Eres un asistente de OCR experto. Analiza la imagen de una factura o ticket y extrae los datos financieros.
+Devuelve SOLO un JSON con esta estructura exacta:
+{
+  "monto": número (total de la factura),
+  "categoria": "categoría detectada" (ej: Restaurantes, Comida, Supermercado, Transporte, etc.),
+  "descripcion": "nombre del establecimiento o descripción corta",
+  "fecha": "YYYY-MM-DD" (si se ve la fecha, si no, usa la actual)
+}
+Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la factura".
+`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: imageUrl } }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      response_format: { type: "json_object" }
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) return { error: "No se pudo analizar la imagen" };
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error("Error analyzing receipt:", error);
+    return { error: "Error al analizar la imagen" };
+  }
 }
