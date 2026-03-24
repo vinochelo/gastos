@@ -168,8 +168,8 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
 
   try {
     console.log("Calling Groq API with model meta-llama/llama-4-scout-17b-16e-instruct");
-    
-    const completion = await groq.chat.completions.create({
+
+    const groqPromise = groq.chat.completions.create({
       model: "meta-llama/llama-4-scout-17b-16e-instruct",
       messages: [
         {
@@ -184,6 +184,12 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
       max_tokens: 512,
       response_format: { type: "json_object" }
     });
+
+    const timeoutPromise = new Promise<any>((_, reject) => 
+      setTimeout(() => reject(new Error("Timeout: Groq API took too long (60s)")), 60000)
+    );
+
+    const completion: any = await Promise.race([groqPromise, timeoutPromise]);
 
     console.log("Groq API response received");
     const content = completion.choices[0]?.message?.content;
