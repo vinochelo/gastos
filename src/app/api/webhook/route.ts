@@ -453,12 +453,15 @@ bot.on("photo", async (ctx) => {
 
       let result;
       try {
+        console.log("Calling analyzeReceipt...");
         result = await analyzeReceipt(imageUrl);
+        console.log("analyzeReceipt returned:", result);
       } catch (err: any) {
         console.error("Error in analyzeReceipt:", err);
         return ctx.reply(`❌ Error al analizar la imagen: ${err.message}. Intenta de nuevo.`);
       }
 
+      console.log("Result received:", result);
       if (!result || result.error) {
        return ctx.reply(`❌ ${result.error}. Intenta de nuevo o describe el gasto manualmente.`);
      }
