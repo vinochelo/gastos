@@ -200,7 +200,7 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
       return { error: "No se pudo analizar la imagen" };
     }
 
-    try {
+      try {
       return JSON.parse(content);
     } catch (e) {
       console.error("Failed to parse JSON:", e);
@@ -213,7 +213,8 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
           console.error("Failed to parse extracted JSON:", e2);
         }
       }
-      return { error: "La respuesta no fue JSON válido: " + content.substring(0, 100) };
+      // Return a detailed error message so we can see what's happening
+      return { error: `La IA no devolvió JSON válido. Respondió: ${content.substring(0, 150)}...` };
     }
   } catch (error: any) {
     console.error("Error analyzing receipt:", error);

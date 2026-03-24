@@ -463,7 +463,9 @@ bot.on("photo", async (ctx) => {
 
       console.log("Result received:", result);
       if (!result || result.error) {
-       return ctx.reply(`❌ ${result.error}. Intenta de nuevo o describe el gasto manualmente.`);
+        // Show the raw response if available for debugging
+        const debugMsg = result.error.includes("JSON") ? `\n\n(Debug: ${result.error})` : "";
+        return ctx.reply(`❌ ${result.error}. Intenta de nuevo o describe el gasto manualmente.${debugMsg}`);
      }
 
      // Guardar datos temporales en un objeto global (en memoria) o en Firestore si se quiere persistencia
