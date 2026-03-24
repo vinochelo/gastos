@@ -203,13 +203,102 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
         if (!matchFound) {
           results.push(`⚠️ No encontré transacción de $${montoReverso} para revertir.`);
         }
+      } else if (item.tipo === "editar") {
+        const montoNuevo = Math.abs(item.monto);
+        const cuentaBuscada = item.cuenta?.toLowerCase();
+        
+        const recentSnap = await adminDb.collection("transactions")
+          .where("userId", "==", userId)
+          .orderBy("timestamp", "desc")
+          .limit(20)
+          .get();
+        
+        let matchFound = false;
+
+        for (const doc of recentSnap.docs) {
+          const data = doc.data();
+          const matchMonto = Math.abs(data.monto) === montoNuevo;
+          const matchCuenta = !cuentaBuscada || 
+            (data.accountId && accountsSnap.docs.some(a => a.id === data.accountId && a.data().nombre.toLowerCase().includes(cuentaBuscada)));
+          
+          if (matchMonto && matchCuenta) {
+            const oldTipo = data.tipo;
+            const oldMonto = Math.abs(data.monto);
+            const oldAccountId = data.accountId;
+            
+            // 1. Revertir saldo cuenta vieja
+            const multReverso = oldTipo === "gasto" ? 1 : -1;
+            if (oldAccountId) {
+              const oldAccountDoc = accountsSnap.docs.find(a => a.id === oldAccountId);
+              if (oldAccountDoc) {
+                batch.update(oldAccountDoc.ref, { saldo: admin.firestore.FieldValue.increment(multReverso * oldMonto) });
+              }
+            }
+
+            // 2. Determinar nuevos valores
+            const finalTipo = item.nuevoTipo || oldTipo;
+            const finalCategoria = item.categoria || data.categoria;
+            
+            let newAccountId = oldAccountId;
+            if (item.cuenta) {
+               const newAccountDoc = accountsSnap.docs.find(d => 
+                d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||
+                item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
+              );
+              if (newAccountDoc) newAccountId = newAccountDoc.id;
+            }
+
+            // 3. Crear nueva transacción
+            const finalDesc = data.descripcion;
+            const finalMonto = montoNuevo;
+            const multNuevo = finalTipo === "ingreso" ? 1 : -1;
+            const timestamp = data.timestamp; 
+
+            batch.set(adminDb.collection("transactions").doc(), {
+              userId,
+              monto: finalMonto,
+              tipo: finalTipo,
+              accountId: newAccountId,
+              categoria: finalCategoria,
+              descripcion: finalDesc,
+              timestamp,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              fuente: "telegram_edit"
+            });
+
+            // 4. Aplicar nuevo saldo cuenta nueva
+            if (newAccountId) {
+              const newAccountDoc = accountsSnap.docs.find(a => a.id === newAccountId);
+              if (newAccountDoc) {
+                batch.update(newAccountDoc.ref, { saldo: admin.firestore.FieldValue.increment(multNuevo * finalMonto) });
+              }
+            }
+
+            // 5. Eliminar old
+            batch.delete(doc.ref);
+            
+            results.push(`✏️ EDITADO: $${oldMonto} (${oldTipo}) -> $${finalMonto} (${finalTipo}) en ${finalCategoria}`);
+            matchFound = true;
+            break; 
+          }
+        }
+
+        if (!matchFound) {
+          results.push(`⚠️ No encontré transacción de $${montoNuevo} para editar.`);
+        }
       } else {
         let accountDoc = accountsSnap.docs.find(d => 
           d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||
           item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
         );
         
-        if (!accountDoc && accountsSnap.docs.length === 1) {
+        // Si no se指定cuenta o no matchea, buscar "Efectivo"
+        if (!accountDoc) {
+           accountDoc = accountsSnap.docs.find(d => d.data().nombre.toLowerCase().includes("efectivo"));
+        }
+
+        // Si no hay "Efectivo", usar la primera cuenta disponible
+        if (!accountDoc && accountsSnap.docs.length > 0) {
           accountDoc = accountsSnap.docs[0];
         }
 

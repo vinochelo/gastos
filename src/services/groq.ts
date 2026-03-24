@@ -40,11 +40,16 @@ El usuario te envía un mensaje sobre sus finanzas personales. Tu trabajo es ent
    
 3. **REGISTRAR TRANSFERENCIA**: "transferí 200 de mi cuenta al banco", "mover 500 de banco a efectivo"
 
-4. **REVERTIR/CANCELAR**: "borra eso", "no, era 100 no 200", "cancela el gasto", "elimina eso"
-   - Si detecta arrepentimiento o corrección, marca como "reverso"
+  4. **REVERTIR/CANCELAR**: "borra eso", "no, era 100 no 200", "cancela el gasto", "elimina eso"
+    - Si detecta arrepentimiento o corrección, marca como "reverso"
 
-5. **RECLASIFICAR**: "era comida no cine", "me equivoqué era transporte", "pasa eso a juegos"
-   - Detecta que quiere cambiar categoría de algo ya registrado
+  5. **RECLASIFICAR**: "era comida no cine", "me equivoqué era transporte", "pasa eso a juegos"
+    - Detecta que quiere cambiar categoría de algo ya registrado
+
+  6. **EDITAR TRANSACCIÓN**: "cambia eso", "modifica el monto a 50", "era 100 no 200", "cámbialo a ingreso", "cambia la cuenta a banco"
+    - Usa "editar" cuando el usuario quiere cambiar algo de la última transacción sin borrarla completamente.
+    - Si dice "era X no Y" (ej: "era 100 no 200"), implica que hubo un error en el monto anterior y quiere cambiarlo.
+    - Puede cambiar: monto, categoría, tipo (gasto/ingreso), cuenta.
 
 6. **CONSULTAR SALDO**: "cuánto tengo", "mi saldo", "cuánto hay en la cuenta", "balances"
    - Si menciona cuenta específica: "cuánto hay en efectivo"
@@ -76,12 +81,13 @@ Estructura exacta:
 {
   "items": [
     {
-      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "consulta_saldo" | "consulta_gasto_categoria" | "ayuda" | "enlace_web",
-      "monto": número (OBLIGATORIO para gasto/ingreso/transferencia/reverso, usa decimales con punto: 0.35),
-      "categoria": "categoría detectada del usuario o común",
-      "cuenta": "nombre de la cuenta donde se hizo (usa la primera si hay varias)",
+      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "ayuda" | "enlace_web",
+      "monto": número (OBLIGATORIO para gasto/ingreso/transferencia/reverso/editar, usa decimales con punto: 0.35),
+      "categoria": "categoría detectada del usuario o común (opcional en editar si no se especifica)",
+      "cuenta": "nombre de la cuenta donde se hizo (usa la primera si hay varias, o 'Efectivo' por defecto)",
       "descripcion": "descripción o lo que escribió el usuario",
-      "fecha": "YYYY-MM-DD (solo si menciona fecha específica, si no omite el campo)"
+      "fecha": "YYYY-MM-DD (solo si menciona fecha específica, si no omite el campo)",
+      "nuevoTipo": "gasto | ingreso (SOLO para tipo 'editar', si el usuario quiere cambiar el tipo de la transacción)"
     }
   ]
 }
