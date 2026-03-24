@@ -438,6 +438,9 @@ bot.on("photo", async (ctx) => {
      const fileId = photo.file_id;
 
       ctx.reply("📸 Analizando factura... (Esto puede tomar unos segundos)");
+      
+      // Send typing action to keep the connection alive
+      await ctx.sendChatAction("typing");
 
        const fileLink = await bot.telegram.getFileLink(fileId);
        const imageUrl = fileLink.toString();
