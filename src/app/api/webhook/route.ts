@@ -433,23 +433,26 @@ bot.on("photo", async (ctx) => {
      const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
      if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
      
-     const userId = userSnap.docs[0].id;
-     const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Get highest resolution
-     const fileId = photo.file_id;
+      const userId = userSnap.docs[0].id;
+      const photo = ctx.message.photo[0]; // Get lowest resolution for speed
+      const fileId = photo.file_id;
 
-      ctx.reply("📸 Analizando factura... (Esto puede tomar unos segundos)");
+      console.log("Processing photo, fileId:", fileId);
+      ctx.reply("📸 Descargando imagen...");
+
+      const fileLink = await bot.telegram.getFileLink(fileId);
+      const imageUrl = fileLink.toString();
       
+      console.log("Image URL obtained:", imageUrl);
+      ctx.reply("🤖 Analizando contenido... (10-20 segundos)");
+
       // Send typing action to keep the connection alive
       await ctx.sendChatAction("typing");
 
-       const fileLink = await bot.telegram.getFileLink(fileId);
-       const imageUrl = fileLink.toString();
-       
-       console.log("Analyzing receipt from:", imageUrl);
+      console.log("Starting AI analysis...");
 
       let result;
       try {
-        // Add a timeout wrapper or just let it fail if it takes too long
         result = await analyzeReceipt(imageUrl);
       } catch (err: any) {
         console.error("Error in analyzeReceipt:", err);
