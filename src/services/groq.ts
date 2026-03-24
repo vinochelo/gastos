@@ -167,8 +167,10 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
 `;
 
   try {
+    console.log("Calling Groq API with model meta-llama/llama-4-scout-17b-16e-instruct");
+    
     const completion = await groq.chat.completions.create({
-      model: "llama-3.2-90b-vision-preview",
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
       messages: [
         {
           role: "user",
@@ -179,15 +181,24 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
         }
       ],
       temperature: 0.1,
+      max_tokens: 1024,
       response_format: { type: "json_object" }
     });
 
+    console.log("Groq API response received");
     const content = completion.choices[0]?.message?.content;
-    if (!content) return { error: "No se pudo analizar la imagen" };
+    
+    if (!content) {
+      console.error("No content in response");
+      return { error: "No se pudo analizar la imagen" };
+    }
 
     return JSON.parse(content);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error analyzing receipt:", error);
-    return { error: "Error al analizar la imagen" };
+    if (error.response) {
+       console.error("Groq API error response:", error.response.data);
+    }
+    return { error: error.message || "Error al analizar la imagen" };
   }
 }
