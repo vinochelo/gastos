@@ -193,13 +193,28 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
 
     console.log("Groq API response received");
     const content = completion.choices[0]?.message?.content;
+    console.log("Raw content:", content);
     
     if (!content) {
       console.error("No content in response");
       return { error: "No se pudo analizar la imagen" };
     }
 
-    return JSON.parse(content);
+    try {
+      return JSON.parse(content);
+    } catch (e) {
+      console.error("Failed to parse JSON:", e);
+      // Try to extract JSON from text if it's not pure JSON
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch (e2) {
+          console.error("Failed to parse extracted JSON:", e2);
+        }
+      }
+      return { error: "La respuesta no fue JSON válido: " + content.substring(0, 100) };
+    }
   } catch (error: any) {
     console.error("Error analyzing receipt:", error);
     if (error.response) {
