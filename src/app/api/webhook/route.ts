@@ -437,19 +437,20 @@ bot.on("photo", async (ctx) => {
      const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Get highest resolution
      const fileId = photo.file_id;
 
-     ctx.reply("📸 Analizando factura...");
+      ctx.reply("📸 Analizando factura... (Esto puede tomar unos segundos)");
 
-      const fileLink = await bot.telegram.getFileLink(fileId);
-      const imageUrl = fileLink.toString();
-      
-      console.log("Analyzing receipt from:", imageUrl);
+       const fileLink = await bot.telegram.getFileLink(fileId);
+       const imageUrl = fileLink.toString();
+       
+       console.log("Analyzing receipt from:", imageUrl);
 
       let result;
       try {
+        // Add a timeout wrapper or just let it fail if it takes too long
         result = await analyzeReceipt(imageUrl);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error in analyzeReceipt:", err);
-        return ctx.reply("❌ Error al analizar la imagen. Intenta de nuevo.");
+        return ctx.reply(`❌ Error al analizar la imagen: ${err.message}. Intenta de nuevo.`);
       }
 
       if (!result || result.error) {
