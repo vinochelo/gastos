@@ -26,17 +26,23 @@ export default function Dashboard() {
   const telegramLinked = !!config?.telegramId;
 
   const stats = useMemo(() => {
+    if (!transactions || !accounts) return { income: 0, expense: 0, totalBalance: 0, calculatedBalances: {} };
+
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     let income = 0, expense = 0;
     
     transactions.forEach(tx => {
-      const ts = tx.timestamp;
-      const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
-      if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
-        if (tx.tipo === 'ingreso') income += tx.monto;
-        else if (tx.tipo === 'gasto') expense += tx.monto;
+      try {
+        const ts = tx.timestamp;
+        const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
+        if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
+          if (tx.tipo === 'ingreso') income += tx.monto;
+          else if (tx.tipo === 'gasto') expense += tx.monto;
+        }
+      } catch (e) {
+        console.error("Error processing tx:", e);
       }
     });
     

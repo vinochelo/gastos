@@ -439,12 +439,20 @@ bot.on("photo", async (ctx) => {
 
      ctx.reply("📸 Analizando factura...");
 
-     const fileLink = await bot.telegram.getFileLink(fileId);
-     const imageUrl = fileLink.toString();
+      const fileLink = await bot.telegram.getFileLink(fileId);
+      const imageUrl = fileLink.toString();
+      
+      console.log("Analyzing receipt from:", imageUrl);
 
-     const result = await analyzeReceipt(imageUrl);
+      let result;
+      try {
+        result = await analyzeReceipt(imageUrl);
+      } catch (err) {
+        console.error("Error in analyzeReceipt:", err);
+        return ctx.reply("❌ Error al analizar la imagen. Intenta de nuevo.");
+      }
 
-     if (result.error) {
+      if (!result || result.error) {
        return ctx.reply(`❌ ${result.error}. Intenta de nuevo o describe el gasto manualmente.`);
      }
 
