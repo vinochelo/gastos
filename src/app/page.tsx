@@ -1,4 +1,6 @@
 'use client';
+// Force rebuild - System synced: 2026-03-25T09:22:00Z
+
 
 import { useState } from "react";
 import { useAccounts, useRecentTransactions, useUserConfig, Transaction } from "@/hooks/useFirestore";
