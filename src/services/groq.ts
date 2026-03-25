@@ -154,20 +154,16 @@ export function getHelpMessage(): string {
 }
 
 export async function analyzeReceipt(imageData: string, isBase64 = false) {
-  const prompt = `
-Eres un asistente de OCR experto. Analiza la imagen de una factura o ticket y extrae los datos financieros.
-Devuelve SOLO un JSON con esta estructura exacta:
-{
-  "monto": número (total de la factura),
-  "categoria": "categoría detectada" (ej: Restaurantes, Comida, Supermercado, Transporte, etc.),
-  "descripcion": "nombre del establecimiento o descripción corta",
-  "fecha": "YYYY-MM-DD" (si se ve la fecha, si no, usa la actual)
-}
-Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la factura".
-`;
+  const systemPrompt = `Eres un asistente de OCR experto en finanzas. 
+Tu tarea es analizar la imagen de una factura/ticket y extraer: monto, categoria, descripcion y fecha.
+Responde ÚNICAMENTE en formato JSON válido.
+Si no puedes leer NADA, devuelve {"error": "No se pudo leer la factura"}.
+Si ves datos parciales, haz tu mejor esfuerzo por completar el JSON.`;
+
+  const userPrompt = "Analiza esta imagen y extrae los datos en JSON.";
 
   try {
-    console.log("Calling Groq API with model meta-llama/llama-4-scout-17b-16e-instruct (Vision)");
+    console.log("Calling Groq API with model meta-llama/llama-4-scout-17b-16e-instruct (Vision Enhanced)");
 
     const imageContent = isBase64 
       ? { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageData}` } }
@@ -176,17 +172,17 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
     const groqPromise = groq.chat.completions.create({
       model: "meta-llama/llama-4-scout-17b-16e-instruct",
       messages: [
+        { role: "system", content: systemPrompt },
         {
           role: "user",
           content: [
-            { type: "text", text: prompt },
-            imageContent as any
+            imageContent as any,
+            { type: "text", text: userPrompt }
           ]
         }
       ],
       temperature: 0.1,
-      max_tokens: 512,
-      response_format: { type: "json_object" }
+      max_tokens: 512
     });
 
     const timeoutPromise = new Promise<any>((_, reject) => 
