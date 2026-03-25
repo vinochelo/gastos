@@ -104,12 +104,26 @@ export default function Dashboard() {
         <div>
           <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
         </div>
-        <button 
-          onClick={() => router.push('/ajustes')}
-          className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
-        >
-          <Settings size={16} className="opacity-50" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-foreground text-background rounded-lg px-4 py-2 flex items-center justify-center gap-2 font-semibold text-xs"
+          >
+            <Plus size={14} /> Agregar
+          </button>
+          <button
+            onClick={() => setIsTransferModalOpen(true)}
+            className="w-9 h-9 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center"
+          >
+            <ArrowRightLeft size={14} />
+          </button>
+          <button 
+            onClick={() => router.push('/ajustes')}
+            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+          >
+            <Settings size={14} className="opacity-50" />
+          </button>
+        </div>
       </div>
 
       {!telegramLinked && (
@@ -212,20 +226,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex-1 bg-foreground text-background rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold text-sm"
-        >
-          <Plus size={16} /> Agregar
-        </button>
-        <button
-          onClick={() => setIsTransferModalOpen(true)}
-          className="w-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center"
-        >
-          <ArrowRightLeft size={16} />
-        </button>
-      </div>
 
       <AddTransactionModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
       <TransferModal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} />

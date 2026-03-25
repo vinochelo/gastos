@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { useAccounts } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
-import { collection, serverTimestamp, doc, increment, writeBatch } from "firebase/firestore";
-import { X, ArrowRight, Loader2 } from "lucide-react";
+import { collection, serverTimestamp, doc, increment, writeBatch, Timestamp } from "firebase/firestore";
+import { X, ArrowRight, Loader2, Calendar } from "lucide-react";
 
 export default function TransferModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { accounts } = useAccounts();
   const [amount, setAmount] = useState("");
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,7 +41,7 @@ export default function TransferModal({ isOpen, onClose }: { isOpen: boolean, on
         toNombre: toAccount?.nombre,
         descripcion: `Transferencia: ${fromAccount?.nombre} → ${toAccount?.nombre}`,
         categoria: "Transferencia",
-        timestamp: serverTimestamp(),
+        timestamp: Timestamp.fromDate(new Date(date + "T12:00:00")),
         createdAt: serverTimestamp(),
         fuente: "web"
       });
@@ -95,6 +96,19 @@ export default function TransferModal({ isOpen, onClose }: { isOpen: boolean, on
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
               className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 text-3xl font-bold p-4 pl-10 rounded-xl text-center focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-400 uppercase flex items-center gap-1">
+              <Calendar size={12} /> Fecha de Transferencia
+            </label>
+            <input 
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
               required
             />
           </div>

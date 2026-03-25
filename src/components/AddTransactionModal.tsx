@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore";
-import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle } from "lucide-react";
+import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle, Calendar, Calculator, Percent } from "lucide-react";
+import { Timestamp } from "firebase/firestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 
 export default function AddTransactionModal({ isOpen, onClose, defaultType = "gasto" }: { isOpen: boolean, onClose: () => void, defaultType?: "gasto" | "ingreso" }) {
@@ -15,6 +16,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +30,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       setDescription("");
       setType(defaultType);
       setAccountId("");
+      setDate(new Date().toISOString().split('T')[0]);
       setError(null);
     }
   }, [isOpen, defaultType]);
@@ -65,7 +68,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         categoria: category,
         accountId,
         tipo: type,
-        timestamp: serverTimestamp(),
+        timestamp: Timestamp.fromDate(new Date(date + "T12:00:00")),
         createdAt: serverTimestamp(),
         fuente: "web"
       });
@@ -115,7 +118,6 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
             <X size={20} />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold ${type === 'gasto' ? 'text-red-400' : 'text-green-400'}`}>$</span>
@@ -130,17 +132,71 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1 flex items-center gap-1">
-              <Tag size={10} /> Detalle
-            </label>
-            <input 
-              type="text"
-              placeholder="Describe la transacción..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
-            />
+          <div className="flex gap-2 mb-2">
+             <button 
+               type="button"
+               onClick={() => {
+                 const val = parseFloat(amount) || 0;
+                 setAmount((val * 1.15).toFixed(2));
+               }}
+               className="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-indigo-100 transition-colors"
+             >
+               <Percent size={10} /> +15% IVA
+             </button>
+             <button 
+               type="button"
+               onClick={() => {
+                 const val = parseFloat(amount) || 0;
+                 setAmount((val * 1.10).toFixed(2));
+               }}
+               className="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-indigo-100 transition-colors"
+             >
+               <Percent size={10} /> +10% Prop
+             </button>
+             <button 
+               type="button"
+               onClick={() => {
+                 const val = parseFloat(amount) || 0;
+                 setAmount((val * 1.05).toFixed(2));
+               }}
+               className="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-indigo-100 transition-colors"
+             >
+               <Percent size={10} /> +5% Int
+             </button>
+             <button 
+               type="button"
+               onClick={() => setAmount("")}
+               className="px-3 bg-gray-50 dark:bg-gray-700 text-gray-400 py-2 rounded-lg text-[10px] font-bold hover:bg-gray-100 transition-colors"
+             >
+               AC
+             </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+             <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1 flex items-center gap-1">
+                  <Calendar size={10} /> Fecha
+                </label>
+                <input 
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+             </div>
+             <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1 flex items-center gap-1">
+                  <Tag size={10} /> Detalle
+                </label>
+                <input 
+                  type="text"
+                  placeholder="Describe..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                />
+             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
