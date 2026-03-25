@@ -441,20 +441,22 @@ bot.on("photo", async (ctx) => {
       ctx.reply("📸 Descargando imagen...");
 
       const fileLink = await bot.telegram.getFileLink(fileId);
-      const imageUrl = fileLink.toString();
       
-      console.log("Image URL obtained:", imageUrl);
-      ctx.reply("🤖 Analizando contenido... (10-20 segundos)");
+      console.log("Downloading image...");
+      ctx.reply("🤖 Descargando y analizando... (10-15s)");
+      
+      // Download image as buffer
+      const imageResponse = await axios.get(fileLink.toString(), { responseType: 'arraybuffer' });
+      const base64Image = Buffer.from(imageResponse.data).toString('base64');
 
       // Send typing action to keep the connection alive
       await ctx.sendChatAction("typing");
 
-      console.log("Starting AI analysis...");
+      console.log("Starting AI analysis with Base64...");
 
       let result;
       try {
-        console.log("Calling analyzeReceipt...");
-        result = await analyzeReceipt(imageUrl);
+        result = await analyzeReceipt(base64Image, true);
         console.log("analyzeReceipt returned:", result);
       } catch (err: any) {
         console.error("Error in analyzeReceipt:", err);

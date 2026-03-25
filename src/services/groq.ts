@@ -153,7 +153,7 @@ export function getHelpMessage(): string {
 ¡Escríbeme cualquier cosa y haré mi mejor esfuerzo!`;
 }
 
-export async function analyzeReceipt(imageUrl: string) {
+export async function analyzeReceipt(imageData: string, isBase64 = false) {
   const prompt = `
 Eres un asistente de OCR experto. Analiza la imagen de una factura o ticket y extrae los datos financieros.
 Devuelve SOLO un JSON con esta estructura exacta:
@@ -167,7 +167,11 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
 `;
 
   try {
-    console.log("Calling Groq API with model meta-llama/llama-4-scout-17b-16e-instruct");
+    console.log("Calling Groq API with model meta-llama/llama-4-scout-17b-16e-instruct (Vision)");
+
+    const imageContent = isBase64 
+      ? { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageData}` } }
+      : { type: "image_url", image_url: { url: imageData } };
 
     const groqPromise = groq.chat.completions.create({
       model: "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -176,7 +180,7 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
           role: "user",
           content: [
             { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: imageUrl } }
+            imageContent as any
           ]
         }
       ],
