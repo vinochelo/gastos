@@ -28,7 +28,7 @@ Si ves datos parciales, haz tu mejor esfuerzo por completar el JSON.`;
   try {
     const modelOptions = [
       "google/gemma-3-12b-it:free",
-      "mistralai/mistral-small-24b-instruct-2501:free"
+      "mistralai/mistral-small-3.1-24b-instruct:free"
     ];
     
     // Usaremos Mistral Small 24B ya que el proveedor de Gemma devolvió un error 400
