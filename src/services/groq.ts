@@ -152,3 +152,36 @@ export function getHelpMessage(): string {
 
 ¡Escríbeme cualquier cosa y haré mi mejor esfuerzo!`;
 }
+
+export async function editPendingWithAI(oldData: any, userInput: string, userExpCats?: string[], userIncCats?: string[]) {
+  const systemPrompt = `Eres un asistente AI financiero. 
+Tu única tarea es aplicar las modificaciones pedidas por el usuario sobre un JSON existente.
+Modifica los valores o categorías según la orden, respetando los datos originales que NO pide cambiar.
+
+Variables permitidas:
+Categorías de gasto: ${(userExpCats || []).join(", ")}
+Categorías de ingreso: ${(userIncCats || []).join(", ")}
+
+JSON ACTUAL a editar:
+${JSON.stringify(oldData, null, 2)}
+
+INSTRUCCIÓN: "${userInput}"
+
+DEVUELVE ÚNICAMENTE EL NUEVO JSON MODIFICADO. NO incluyas saludos ni explicaciones extras, SOLO EL JSON VÁLIDO.`;
+
+  try {
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.1,
+    });
+    
+    let content = chatCompletion.choices[0]?.message?.content || "";
+    content = content.replace(/```json\n?|\n?```/g, "").trim();
+    
+    return JSON.parse(content);
+  } catch (error) {
+    console.error("Error editing pending transaction:", error);
+    return oldData;
+  }
+}

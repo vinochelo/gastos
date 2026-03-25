@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Telegraf } from "telegraf";
 import admin from "firebase-admin";
 import { adminDb } from "@/lib/firebase-admin";
-import { transcribeAudio, parseTransaction, getHelpMessage } from "@/services/groq";
+import { transcribeAudio, parseTransaction, getHelpMessage, editPendingWithAI } from "@/services/groq";
 import { analyzeReceipt } from "@/services/ai";
 import axios from "axios";
 import fs from "fs";
@@ -10,6 +10,48 @@ import path from "path";
 import os from "os";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || "");
+
+async function handlePendingEdit(ctx: any, userId: string, pendingId: string, userInput: string) {
+  ctx.reply("✏️ Aplicando cambio...");
+  const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
+  const userRef = adminDb.collection("users").doc(userId);
+  if (!pendingDoc.exists) {
+     await userRef.update({ telegramState: admin.firestore.FieldValue.delete() });
+     return ctx.reply("❌ La transacción expiró o ya fue guardada.");
+  }
+  const oldData = pendingDoc.data()!;
+  
+  const userDoc = await userRef.get();
+  const userData = userDoc.data() || {};
+  const expCats = userData.expenseCategories || userData.categories || [];
+  const incCats = userData.incomeCategories || [];
+  
+  const newData = await editPendingWithAI(oldData, userInput, expCats, incCats);
+  
+  await pendingDoc.ref.update({
+    monto: newData.monto || oldData.monto,
+    categoria: newData.categoria || oldData.categoria,
+    descripcion: newData.descripcion || oldData.descripcion,
+  });
+
+  await userRef.update({ telegramState: admin.firestore.FieldValue.delete() });
+
+  const message = `📝 *Nuevos datos detectados:*\n\n💰 Monto: $${newData.monto || oldData.monto}\n📂 Categoría: ${newData.categoria || oldData.categoria}\n📄 Descripción: ${newData.descripcion || oldData.descripcion}\n\n¿Qué deseas hacer?`;
+
+  ctx.reply(message, {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Confirmar", callback_data: `confirm_receipt_${pendingId}` },
+          { text: "✏️ Editar", callback_data: `edit_receipt_${pendingId}` }
+        ],
+        [
+          { text: "❌ Cancelar", callback_data: "cancel_receipt" }
+        ]
+      ]
+    }
+  });
+}
 
 async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise<unknown> }, userId: string, userInput: string, isAudio = false) {
   try {
@@ -400,6 +442,12 @@ bot.on("text", async (ctx) => {
   try {
     const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
     if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
+    const userData = userSnap.docs[0].data();
+    if (userData.telegramState && userData.telegramState.startsWith("editing_")) {
+      const pendingId = userData.telegramState.replace("editing_", "");
+      await handlePendingEdit(ctx, userSnap.docs[0].id, pendingId, ctx.message.text);
+      return;
+    }
     await processIncomingTransaction(ctx, userSnap.docs[0].id, ctx.message.text);
   } catch { ctx.reply("❌ Error."); }
 });
@@ -411,7 +459,7 @@ bot.on("voice", async (ctx) => {
      const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
      if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
      const userId = userSnap.docs[0].id;
-     ctx.reply("🎤 Analizando...");
+     ctx.reply("🎤 Escuchando...");
      const fileLink = await bot.telegram.getFileLink(fileId);
      const tempPath = path.join(os.tmpdir(), `${fileId}.ogg`);
      const response = await axios({ url: fileLink.toString(), responseType: 'stream' });
@@ -423,7 +471,14 @@ bot.on("voice", async (ctx) => {
      });
      const transcription = await transcribeAudio(tempPath);
      ctx.reply(`📝 "${transcription}"`);
-     await processIncomingTransaction(ctx, userId, transcription, true);
+     
+     const userData = userSnap.docs[0].data();
+     if (userData.telegramState && userData.telegramState.startsWith("editing_")) {
+       const pendingId = userData.telegramState.replace("editing_", "");
+       await handlePendingEdit(ctx, userId, pendingId, transcription);
+     } else {
+       await processIncomingTransaction(ctx, userId, transcription, true);
+     }
      try { fs.unlinkSync(tempPath); } catch { /* ignore */ }
    } catch { ctx.reply("❌ Error de audio."); }
 });
@@ -484,7 +539,7 @@ bot.on("photo", async (ctx) => {
        createdAt: admin.firestore.FieldValue.serverTimestamp()
      });
      
-     const message = `📝 *Datos detectados:*\n\n💰 Monto: $${result.monto}\n📂 Categoría: ${result.categoria}\n📄 Descripción: ${result.descripcion}\n\n¿Confirmas el registro?`;
+     const message = `📝 *Datos detectados:*\n\n💰 Monto: $${result.monto}\n📂 Categoría: ${result.categoria}\n📄 Descripción: ${result.descripcion}\n\n¿Qué deseas hacer?`;
 
      // 2. Responder con botones inline pasando solo el ID
      ctx.reply(message, {
@@ -492,6 +547,9 @@ bot.on("photo", async (ctx) => {
          inline_keyboard: [
            [
              { text: "✅ Confirmar", callback_data: `confirm_receipt_${pendingRef.id}` },
+             { text: "✏️ Editar", callback_data: `edit_receipt_${pendingRef.id}` }
+           ],
+           [
              { text: "❌ Cancelar", callback_data: "cancel_receipt" }
            ]
          ]
@@ -569,9 +627,27 @@ bot.on("callback_query", async (ctx) => {
       console.error("Error confirming receipt:", error);
       ctx.answerCbQuery("❌ Error al confirmar.");
     }
+  } else if (callbackData.startsWith("edit_receipt_")) {
+    const pendingId = callbackData.replace("edit_receipt_", "");
+    const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
+    
+    if (!pendingDoc.exists) return ctx.answerCbQuery("❌ Error: Expirado.");
+    
+    const data = pendingDoc.data()!;
+    await adminDb.collection("users").doc(data.userId).update({
+      telegramState: `editing_${pendingId}`
+    });
+    
+    ctx.answerCbQuery("Modo Edición Activado");
+    
+    // Attempt to extract original message text safely
+    const originalText = (ctx.callbackQuery as any).message?.text || "Datos previos detectados.";
+    
+    ctx.editMessageText(`✏️ *Modo Edición*\n\n${originalText}\n\n👉 *Escribe o envía un audio con los cambios que deseas* (ej: "Pon monto en 20" o "Cambia categoría a Transporte").`, { parse_mode: "Markdown" });
+
   } else if (callbackData === "cancel_receipt") {
     ctx.answerCbQuery("Cancelado");
-    ctx.editMessageText("❌ Cancelado.");
+    ctx.editMessageText("❌ Operación Cancelada.");
   }
 });
 
