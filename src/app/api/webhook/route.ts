@@ -435,7 +435,9 @@ bot.on("photo", async (ctx) => {
      if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
      
       const userId = userSnap.docs[0].id;
-      const photo = ctx.message.photo[0]; // Get lowest resolution for speed
+      // Telegram provee un array de resoluciones. [0] es la más pequeña (ilegible para facturas).
+      // Usamos el último elemento para obtener la foto en alta resolución.
+      const photo = ctx.message.photo[ctx.message.photo.length - 1]; 
       const fileId = photo.file_id;
 
       console.log("Processing photo, fileId:", fileId);
