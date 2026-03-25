@@ -36,7 +36,8 @@ export default function Dashboard() {
     transactions.forEach(tx => {
       try {
         const ts = tx.timestamp;
-        const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
+        if (!ts) return; // Skip if timestamp is still pending (null)
+        const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
         if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
           if (tx.tipo === 'ingreso') income += tx.monto;
           else if (tx.tipo === 'gasto') expense += tx.monto;

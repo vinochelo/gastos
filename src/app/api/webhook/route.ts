@@ -468,28 +468,25 @@ bot.on("photo", async (ctx) => {
         return ctx.reply(`❌ ${result.error}. Intenta de nuevo o describe el gasto manualmente.${debugMsg}`);
      }
 
-     // Guardar datos temporales en un objeto global (en memoria) o en Firestore si se quiere persistencia
-     // Por ahora, usaremos un Map global en memoria (Nota: en producción esto se debe manejar mejor, ej. con contexto de callback)
-     const tempData = {
+     // 1. Guardar datos temporales en Firestore (para evitar el límite de 64 bytes de Telegram)
+     const pendingRef = adminDb.collection("pendingTransactions").doc();
+     await pendingRef.set({
        userId,
        monto: result.monto,
        categoria: result.categoria,
        descripcion: result.descripcion,
-       fuente: "telegram_photo"
-     };
-     
-     // Usaremos un Map simple para guardar el contexto (en memoria del servidor)
-     // Nota: En un entorno serverless esto es tricky, pero para este caso sirve de ejemplo.
-     // Si esto falla,-usaremos el callback query.
+       fuente: "telegram_photo",
+       createdAt: admin.firestore.FieldValue.serverTimestamp()
+     });
      
      const message = `📝 *Datos detectados:*\n\n💰 Monto: $${result.monto}\n📂 Categoría: ${result.categoria}\n📄 Descripción: ${result.descripcion}\n\n¿Confirmas el registro?`;
 
-     //Responder con botones inline
+     // 2. Responder con botones inline pasando solo el ID
      ctx.reply(message, {
        reply_markup: {
          inline_keyboard: [
            [
-             { text: "✅ Confirmar", callback_data: `confirm_receipt_${JSON.stringify(tempData).replace(/"/g, "'")}` },
+             { text: "✅ Confirmar", callback_data: `confirm_receipt_${pendingRef.id}` },
              { text: "❌ Cancelar", callback_data: "cancel_receipt" }
            ]
          ]
@@ -513,13 +510,19 @@ bot.on("callback_query", async (ctx) => {
 
   if (callbackData.startsWith("confirm_receipt_")) {
     try {
-      const dataStr = callbackData.replace("confirm_receipt_", "").replace(/'/g, '"');
-      const data = JSON.parse(dataStr);
+      const pendingId = callbackData.replace("confirm_receipt_", "");
+      const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
       
-      const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
-      if (userSnap.empty) return ctx.answerCbQuery("Error: Usuario no vinculado.");
+      if (!pendingDoc.exists) {
+        return ctx.answerCbQuery("❌ Error: Los datos expiraron o no existen.");
+      }
       
-      const userId = userSnap.docs[0].id;
+      const data = pendingDoc.data()!;
+      
+      const userSnap = await adminDb.collection("users").doc(data.userId).get();
+      if (!userSnap.exists) return ctx.answerCbQuery("Error: Usuario no encontrado.");
+      
+      const userId = userSnap.id;
       const accountsSnap = await adminDb.collection("accounts").where("userId", "==", userId).get();
       
       if (accountsSnap.empty) {
@@ -550,6 +553,9 @@ bot.on("callback_query", async (ctx) => {
       batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(-monto) });
 
       await batch.commit();
+      
+      // Limpiar datos temporales
+      await adminDb.collection("pendingTransactions").doc(pendingId).delete();
 
       ctx.answerCbQuery("✅ Registrado!");
       ctx.editMessageText(`✅ *Gasto Registrado:*\n\n💰 $${monto} en ${data.categoria}\n📂 ${data.descripcion}`, { parse_mode: "Markdown" });

@@ -19,7 +19,8 @@ export default function MonthlySummary() {
 
     transactions.forEach(tx => {
       const ts = tx.timestamp;
-      const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
+      if (!ts) return; // Skip if null (pending sync)
+      const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
       if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
         if (tx.tipo === 'ingreso') income += tx.monto;
         else if (tx.tipo === 'gasto') expense += tx.monto;

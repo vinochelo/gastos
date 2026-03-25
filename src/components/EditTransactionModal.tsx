@@ -23,8 +23,8 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
   const [accountId, setAccountId] = useState(transaction.accountId || "");
   const [loading, setLoading] = useState(false);
 
-  const expenseCategories = (config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES).sort((a, b) => a.localeCompare(b, 'es'));
-  const incomeCategories = (config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]).sort((a, b) => a.localeCompare(b, 'es'));
+  const expenseCategories = [...(config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES)].sort((a, b) => a.localeCompare(b, 'es'));
+  const incomeCategories = [...(config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"])].sort((a, b) => a.localeCompare(b, 'es'));
   const categories = transaction.tipo === "gasto" ? expenseCategories : incomeCategories;
 
   useEffect(() => {
@@ -56,15 +56,25 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
 
       await updateDoc(doc(db, "transactions", transaction.id), updates);
 
-      if (accountId && diff !== 0) {
+      const hasAmountChanged = diff !== 0;
+      const hasAccountChanged = accountId !== transaction.accountId;
+
+      if (hasAmountChanged || hasAccountChanged) {
         const mult = transaction.tipo === 'ingreso' ? 1 : -1;
+        
+        // 1. Revertir saldo en la cuenta original
         if (transaction.accountId) {
-          await updateDoc(doc(db, "accounts", transaction.accountId), { saldo: increment(-mult * oldMonto) });
+          await updateDoc(doc(db, "accounts", transaction.accountId), { 
+            saldo: increment(-mult * oldMonto) 
+          });
         }
-        await updateDoc(doc(db, "accounts", accountId), { saldo: increment(mult * newMonto) });
-      } else if (accountId && diff !== 0) {
-        const mult = transaction.tipo === 'ingreso' ? 1 : -1;
-        await updateDoc(doc(db, "accounts", accountId), { saldo: increment(mult * diff) });
+        
+        // 2. Aplicar saldo en la cuenta seleccionada (nueva o misma)
+        if (accountId) {
+          await updateDoc(doc(db, "accounts", accountId), { 
+            saldo: increment(mult * newMonto) 
+          });
+        }
       }
 
       onClose();

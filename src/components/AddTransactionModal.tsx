@@ -18,8 +18,8 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const expenseCategories = (config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES).sort((a, b) => a.localeCompare(b, 'es'));
-  const incomeCategories = (config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]).sort((a, b) => a.localeCompare(b, 'es'));
+  const expenseCategories = [...(config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES)].sort((a, b) => a.localeCompare(b, 'es'));
+  const incomeCategories = [...(config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"])].sort((a, b) => a.localeCompare(b, 'es'));
   const categories = type === "gasto" ? expenseCategories : incomeCategories;
 
   useEffect(() => {

@@ -18,9 +18,10 @@ const COLORS = [
 
 const getTimestamp = (tx: Transaction): number => {
   const ts = tx.timestamp;
+  if (!ts) return Date.now(); // Fallback for pending sync
   if (ts instanceof Date) return ts.getTime();
-  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
-    return ts.toDate().getTime();
+  if (typeof ts === 'object' && ts !== null && 'toDate' in ts && typeof (ts as any).toDate === 'function') {
+    return (ts as any).toDate().getTime();
   }
   return 0;
 };
@@ -50,7 +51,11 @@ export default function CategoryChart() {
   const categoryTransactions = useMemo(() => {
     if (!selectedCategory) return [];
     return transactions
-      .filter(tx => tx.categoria === selectedCategory && tx.tipo === activeType)
+      .filter(tx => {
+        const ts = tx.timestamp;
+        if (!ts) return false; // Hide from detail until saved
+        return tx.categoria === selectedCategory && tx.tipo === activeType;
+      })
       .sort((a, b) => getTimestamp(b) - getTimestamp(a));
   }, [selectedCategory, transactions, activeType]);
 
@@ -83,7 +88,8 @@ export default function CategoryChart() {
         <div className="space-y-2 max-h-80 overflow-y-auto">
           {categoryTransactions.map((tx) => {
             const ts = tx.timestamp;
-            const date = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date());
+            if (!ts) return null;
+            const date = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
             return (
               <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
                 <div>
