@@ -31,8 +31,8 @@ Si ves datos parciales, haz tu mejor esfuerzo por completar el JSON.`;
       "mistralai/mistral-small-24b-instruct-2501:free"
     ];
     
-    // Usaremos Gemma 3 12B por defecto ya que es excelente en visión
-    const selectedModel = modelOptions[0];
+    // Usaremos Mistral Small 24B ya que el proveedor de Gemma devolvió un error 400
+    const selectedModel = modelOptions[1];
 
     console.log(`Calling OpenRouter API with model ${selectedModel} (Vision)`);
 
