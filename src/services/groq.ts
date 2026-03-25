@@ -167,10 +167,10 @@ Si no hay suficientes datos, devuelve un JSON con "error": "No se pudo leer la f
 `;
 
   try {
-    console.log("Calling Groq API with model meta-llama/llama-4-scout-17b-16e-instruct");
+    console.log("Calling Groq API with model llama-3.2-90b-vision-preview");
 
     const groqPromise = groq.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: "llama-3.2-90b-vision-preview",
       messages: [
         {
           role: "user",
