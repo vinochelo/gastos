@@ -2,19 +2,18 @@ import axios from 'axios';
 
 export async function analyzeReceipt(imageData: string, isBase64 = false) {
   const systemPrompt = `Eres un asistente de OCR experto en finanzas. 
-Tu tarea es analizar la imagen de una factura/ticket y extraer: monto, categoria, descripcion y fecha.
-Responde ÚNICAMENTE en formato JSON válido.
-Estructura esperada:
+Tu única tarea es analizar la imagen de una factura/ticket y extraer los siguientes datos.
+RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO. NO incluyas saludos, explicaciones, markdown ni ningún otro texto fuera del JSON.
+Estructura JSON estricta y esperada:
 {
-  "monto": número (total de la factura),
-  "categoria": "categoría detectada" (ej: Restaurantes, Comida, Supermercado, Transporte, etc.),
-  "descripcion": "nombre del establecimiento o descripción corta",
-  "fecha": "YYYY-MM-DD" (si se ve la fecha, si no, usa la actual)
+  "monto": número (total numérico exacto de la factura, sin símbolos de moneda),
+  "categoria": "categoría detectada" (elige una: Restaurantes, Comida, Supermercado, Transporte, Salud, Ropa, Hogar, Educación, Ocio, Otro),
+  "descripcion": "nombre del establecimiento o descripción muy corta",
+  "fecha": "YYYY-MM-DD" (si se ve la fecha, si no usa la actual)
 }
-Si no puedes leer NADA, devuelve {"error": "No se pudo leer la factura"}.
-Si ves datos parciales, haz tu mejor esfuerzo por completar el JSON.`;
+Si no logras deducir nada, devuelve {"error": "No se pudo leer"}.`;
 
-  const userPrompt = "Analiza esta imagen y extrae los datos en JSON.";
+  const userPrompt = "Analiza la imagen adjunta y devuelve ÚNICAMENTE el JSON requerido, sin añadir nada más.";
 
   try {
     const imageUrl = isBase64 
@@ -39,7 +38,7 @@ Si ves datos parciales, haz tu mejor esfuerzo por completar el JSON.`;
         }
       ],
       temperature: 0.1,
-      max_tokens: 512
+      max_tokens: 2048
     };
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
