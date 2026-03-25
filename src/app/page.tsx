@@ -149,7 +149,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <CategoryChart />
+      <CategoryChart onEdit={setEditingTx} onDelete={handleDeleteTx} />
 
       <div className="flex gap-3">
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">

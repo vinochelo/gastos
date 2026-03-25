@@ -95,7 +95,7 @@ export function useRecentTransactions(limitCount = 10) {
       const q = query(
         collection(db, "transactions"),
         where("userId", "==", user.uid),
-        orderBy("timestamp", "desc"),
+        orderBy("createdAt", "desc"),
         limit(limitCount)
       );
       unsubscribeFirestore = onSnapshot(q, (snapshot) => {

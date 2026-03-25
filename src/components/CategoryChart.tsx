@@ -3,11 +3,16 @@
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useRecentTransactions, Transaction } from '@/hooks/useFirestore';
 import { useState, useMemo, useCallback } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Settings, Trash2 } from "lucide-react";
 
 interface CategoryData {
   name: string;
   value: number;
+}
+
+interface CategoryChartProps {
+  onEdit?: (tx: Transaction) => void;
+  onDelete?: (tx: Transaction) => void;
 }
 
 const COLORS = [
@@ -17,8 +22,8 @@ const COLORS = [
 ];
 
 const getTimestamp = (tx: Transaction): number => {
-  const ts = tx.timestamp;
-  if (!ts) return Date.now(); // Fallback for pending sync
+  const ts = tx.createdAt || tx.timestamp; // Preferred createdAt for ordering detail
+  if (!ts) return Date.now();
   if (ts instanceof Date) return ts.getTime();
   if (typeof ts === 'object' && ts !== null && 'toDate' in ts && typeof (ts as any).toDate === 'function') {
     return (ts as any).toDate().getTime();
@@ -26,7 +31,7 @@ const getTimestamp = (tx: Transaction): number => {
   return 0;
 };
 
-export default function CategoryChart() {
+export default function CategoryChart({ onEdit, onDelete }: CategoryChartProps) {
   const { transactions } = useRecentTransactions(100);
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -52,8 +57,6 @@ export default function CategoryChart() {
     if (!selectedCategory) return [];
     return transactions
       .filter(tx => {
-        const ts = tx.timestamp;
-        if (!ts) return false; // Hide from detail until saved
         return tx.categoria === selectedCategory && tx.tipo === activeType;
       })
       .sort((a, b) => getTimestamp(b) - getTimestamp(a));
@@ -85,20 +88,35 @@ export default function CategoryChart() {
           </div>
         </div>
 
-        <div className="space-y-2 max-h-80 overflow-y-auto">
+        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
           {categoryTransactions.map((tx) => {
             const ts = tx.timestamp;
-            if (!ts) return null;
-            const date = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
+            const date = ts ? ('toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any))) : new Date();
             return (
-              <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
-                <div>
-                  <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-xs opacity-40">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+              <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 group">
+                <div className="flex-1 min-w-0 pr-2">
+                  <p className="text-sm font-medium truncate">{tx.descripcion || tx.categoria}</p>
+                  <p className="text-[10px] opacity-40">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                 </div>
-                <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
-                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
+                    {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  </p>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => onEdit?.(tx)}
+                      className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg shrink-0"
+                    >
+                      <Settings size={14} className="text-blue-500" />
+                    </button>
+                    <button 
+                      onClick={() => onDelete?.(tx)}
+                      className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg shrink-0"
+                    >
+                      <Trash2 size={14} className="text-red-500" />
+                    </button>
+                  </div>
+                </div>
               </div>
             );
           })}
