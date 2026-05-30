@@ -25,15 +25,29 @@ export default function Dashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      options.push({
+        month: d.getMonth(),
+        year: d.getFullYear(),
+        label: d.toLocaleString('es-ES', { month: 'long', year: 'numeric' })
+      });
+    }
+    return options;
+  }, []);
 
   const telegramLinked = !!config?.telegramId;
 
   const stats = useMemo(() => {
-    if (!transactions || !accounts) return { income: 0, expense: 0, totalBalance: 0, calculatedBalances: {} };
+    if (!transactions || !accounts) return { income: 0, expense: 0, totalBalance: 0 };
 
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
     let income = 0, expense = 0;
     
     transactions.forEach(tx => {
@@ -41,39 +55,28 @@ export default function Dashboard() {
         const ts = tx.timestamp;
         if (!ts) return; // Skip if timestamp is still pending (null)
         const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
-        if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
-          if (tx.tipo === 'ingreso') income += tx.monto;
-          else if (tx.tipo === 'gasto') expense += tx.monto;
+        if (txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear) {
+          if (tx.tipo === 'ingreso') income += Number(tx.monto || 0);
+          else if (tx.tipo === 'gasto') expense += Number(tx.monto || 0);
         }
       } catch (e) {
         console.error("Error processing tx:", e);
       }
     });
     
-    const calculatedBalances: Record<string, number> = {};
-    accounts.forEach(acc => calculatedBalances[acc.id] = 0);
+    const totalBalance = accounts.reduce((acc, a) => acc + Number(a.saldo || 0), 0);
     
-    transactions.forEach(tx => {
-      if (tx.tipo === 'ingreso' && tx.accountId) {
-        calculatedBalances[tx.accountId] = (calculatedBalances[tx.accountId] || 0) + tx.monto;
-      } else if (tx.tipo === 'gasto' && tx.accountId) {
-        calculatedBalances[tx.accountId] = (calculatedBalances[tx.accountId] || 0) - tx.monto;
-      } else if (tx.tipo === 'transferencia') {
-        if (tx.fromId) {
-          calculatedBalances[tx.fromId] = (calculatedBalances[tx.fromId] || 0) - tx.monto;
-        }
-        if (tx.toId) {
-          calculatedBalances[tx.toId] = (calculatedBalances[tx.toId] || 0) + tx.monto;
-        }
-      }
-    });
-    
-    const totalBalance = Object.values(calculatedBalances).reduce((acc, val) => acc + val, 0);
-    
-    return { income, expense, totalBalance, calculatedBalances };
-  }, [transactions, accounts]);
+    return { income, expense, totalBalance };
+  }, [transactions, accounts, selectedMonth, selectedYear]);
 
-  const recentTransactions = transactions;
+  const recentTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      const ts = tx.timestamp;
+      if (!ts) return true; // Show pending
+      const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
+      return txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear;
+    });
+  }, [transactions, selectedMonth, selectedYear]);
 
   if (authLoading) return (
     <div className="flex h-64 items-center justify-center">
@@ -98,7 +101,8 @@ export default function Dashboard() {
   };
 
   const getAccountBalance = (accountId: string) => {
-    return stats.calculatedBalances[accountId] || 0;
+    const acc = accounts.find(a => a.id === accountId);
+    return acc ? acc.saldo : 0;
   };
 
   return (
@@ -106,6 +110,21 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
+          <select
+            value={`${selectedMonth}-${selectedYear}`}
+            onChange={(e) => {
+              const [m, y] = e.target.value.split('-').map(Number);
+              setSelectedMonth(m);
+              setSelectedYear(y);
+            }}
+            className="text-base font-bold bg-transparent border-none p-0 pr-6 m-0 focus:ring-0 text-foreground cursor-pointer capitalize font-sans tracking-tight focus:outline-none"
+          >
+            {monthOptions.map(opt => (
+              <option key={`${opt.month}-${opt.year}`} value={`${opt.month}-${opt.year}`} className="bg-white dark:bg-gray-800 text-foreground text-sm">
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex gap-2">
           <button
@@ -152,7 +171,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <CategoryChart onEdit={setEditingTx} onDelete={handleDeleteTx} />
+      <CategoryChart onEdit={setEditingTx} onDelete={handleDeleteTx} selectedMonth={selectedMonth} selectedYear={selectedYear} />
 
       <div className="flex gap-3">
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">

@@ -183,7 +183,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           for (const doc of transSnap.docs) {
             const data = doc.data();
             if (data.categoria?.toLowerCase().includes(catLower)) {
-              total += data.monto || 0;
+              total += Number(data.monto || 0);
               count++;
             }
           }
@@ -193,7 +193,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           for (const doc of transSnap.docs) {
             const data = doc.data();
             const cat = data.categoria || "Varios";
-            porCategoria[cat] = (porCategoria[cat] || 0) + (data.monto || 0);
+            porCategoria[cat] = (porCategoria[cat] || 0) + Number(data.monto || 0);
           }
           let msg = `📊 GASTOS DEL MES (${mesActual}):\n\n`;
           for (const [cat, monto] of Object.entries(porCategoria).sort((a, b) => b[1] - a[1])) {

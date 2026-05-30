@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# compiled apks and temporary files
+*.apk
+temp_free_models.txt

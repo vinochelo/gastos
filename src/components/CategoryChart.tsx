@@ -13,6 +13,8 @@ interface CategoryData {
 interface CategoryChartProps {
   onEdit?: (tx: Transaction) => void;
   onDelete?: (tx: Transaction) => void;
+  selectedMonth?: number;
+  selectedYear?: number;
 }
 
 const COLORS = [
@@ -31,38 +33,59 @@ const getTimestamp = (tx: Transaction): number => {
   return 0;
 };
 
-export default function CategoryChart({ onEdit, onDelete }: CategoryChartProps) {
+export default function CategoryChart({ onEdit, onDelete, selectedMonth, selectedYear }: CategoryChartProps) {
   const { transactions } = useRecentTransactions(100);
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [period, setPeriod] = useState<'mes' | '30dias' | 'todo'>('mes');
+
+  const filteredTransactions = useMemo(() => {
+    const now = new Date();
+    const activeMonth = selectedMonth !== undefined ? selectedMonth : now.getMonth();
+    const activeYear = selectedYear !== undefined ? selectedYear : now.getFullYear();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    return transactions.filter(tx => {
+      const ts = tx.timestamp || tx.createdAt;
+      const txDate = ts ? ('toDate' in ts ? (ts as any).toDate() : (ts instanceof Date ? ts : new Date(ts as any))) : new Date();
+      
+      if (period === 'mes') {
+        return txDate.getMonth() === activeMonth && txDate.getFullYear() === activeYear;
+      }
+      if (period === '30dias') {
+        return txDate >= thirtyDaysAgo;
+      }
+      return true; // 'todo'
+    });
+  }, [transactions, period, selectedMonth, selectedYear]);
 
   const categoryData = useMemo(() => {
-    return transactions
+    return filteredTransactions
       .filter(tx => tx.tipo === activeType)
       .reduce((acc: CategoryData[], tx) => {
         const existing = acc.find((item) => item.name === tx.categoria);
         if (existing) {
-          existing.value += Math.abs(tx.monto);
+          existing.value += Math.abs(Number(tx.monto || 0));
         } else {
-          acc.push({ name: tx.categoria || 'Otros', value: Math.abs(tx.monto) });
+          acc.push({ name: tx.categoria || 'Otros', value: Math.abs(Number(tx.monto || 0)) });
         }
         return acc;
       }, [])
       .sort((a, b) => b.value - a.value);
-  }, [transactions, activeType]);
+  }, [filteredTransactions, activeType]);
 
   const total = categoryData.reduce((sum, item) => sum + item.value, 0);
 
   const categoryTransactions = useMemo(() => {
     if (!selectedCategory) return [];
-    return transactions
+    return filteredTransactions
       .filter(tx => {
         return tx.categoria === selectedCategory && tx.tipo === activeType;
       })
       .sort((a, b) => getTimestamp(b) - getTimestamp(a));
-  }, [selectedCategory, transactions, activeType]);
+  }, [selectedCategory, filteredTransactions, activeType]);
 
-  const categoryTotal = categoryTransactions.reduce((sum, tx) => sum + tx.monto, 0);
+  const categoryTotal = categoryTransactions.reduce((sum, tx) => sum + Number(tx.monto || 0), 0);
 
   const handleCategoryClick = useCallback((categoryName: string) => {
     setSelectedCategory(categoryName);
@@ -139,14 +162,40 @@ export default function CategoryChart({ onEdit, onDelete }: CategoryChartProps) 
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <div className="w-2 h-8 bg-indigo-500 rounded-full" />
-          <h3 className="text-xl font-bold tracking-tight">Distribución</h3>
+          <div>
+            <h3 className="text-xl font-bold tracking-tight">Distribución</h3>
+            <div className="flex gap-2 mt-1">
+              <button 
+                type="button"
+                onClick={() => setPeriod('mes')}
+                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all ${period === 'mes' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-extrabold' : 'opacity-45 hover:opacity-100'}`}
+              >
+                Este Mes
+              </button>
+              <button 
+                type="button"
+                onClick={() => setPeriod('30dias')}
+                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all ${period === '30dias' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-extrabold' : 'opacity-45 hover:opacity-100'}`}
+              >
+                30 Días
+              </button>
+              <button 
+                type="button"
+                onClick={() => setPeriod('todo')}
+                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all ${period === 'todo' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-extrabold' : 'opacity-45 hover:opacity-100'}`}
+              >
+                Todo
+              </button>
+            </div>
+          </div>
         </div>
         
         <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
           <button 
+            type="button"
             onClick={() => setActiveType('gasto')}
             className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
               activeType === 'gasto' ? 'bg-white dark:bg-gray-600 shadow-sm' : ''
@@ -155,6 +204,7 @@ export default function CategoryChart({ onEdit, onDelete }: CategoryChartProps) 
             Gastos
           </button>
           <button 
+            type="button"
             onClick={() => setActiveType('ingreso')}
             className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
               activeType === 'ingreso' ? 'bg-white dark:bg-gray-600 shadow-sm' : ''
