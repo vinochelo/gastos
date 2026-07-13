@@ -4,11 +4,25 @@ import { useState, useEffect } from "react";
 import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore";
-import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle, Calendar, Calculator, Percent } from "lucide-react";
+import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle, Calendar, Calculator, Percent, Mic, Square, Loader2 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
+import { getApiUrl } from "@/lib/api";
 
-export default function AddTransactionModal({ isOpen, onClose, defaultType = "gasto" }: { isOpen: boolean, onClose: () => void, defaultType?: "gasto" | "ingreso" }) {
+interface AddTransactionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  defaultType?: "gasto" | "ingreso";
+  initialData?: {
+    monto?: number;
+    descripcion?: string;
+    categoria?: string;
+    cuenta?: string;
+    tipo?: "gasto" | "ingreso";
+  } | null;
+}
+
+export default function AddTransactionModal({ isOpen, onClose, defaultType = "gasto", initialData = null }: AddTransactionModalProps) {
   const { accounts } = useAccounts();
   const { config } = useUserConfig();
   const [type, setType] = useState<"gasto" | "ingreso">(defaultType);
@@ -20,26 +34,154 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Recording voice states
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [toastLocal, setToastLocal] = useState<string | null>(null);
+
+  const showToastLocal = (msg: string) => {
+    setToastLocal(msg);
+    setTimeout(() => setToastLocal(null), 3000);
+  };
+
+  const startRecording = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        await handleVoiceUpload(audioBlob);
+      };
+
+      setMediaRecorder(recorder);
+      recorder.start();
+      setIsRecording(true);
+    } catch (err: any) {
+      console.error(err);
+      alert("No se pudo acceder al micrófono. Por favor concede permisos.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const handleVoiceUpload = async (blob: Blob) => {
+    if (!auth.currentUser) return;
+    setVoiceLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "voice.webm");
+      formData.append("userId", auth.currentUser.uid);
+
+      const res = await fetch(getApiUrl("/api/voice-input"), {
+        method: "POST",
+        body: formData,
+      });
+      
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      if (data.result) {
+        const result = data.result;
+        if (result.monto) setAmount(result.monto.toString());
+        if (result.descripcion) setDescription(result.descripcion);
+        if (result.tipo && (result.tipo === "gasto" || result.tipo === "ingreso")) setType(result.tipo);
+        
+        if (result.cuenta) {
+          const matchedAcc = accounts.find(a => 
+            a.nombre.toLowerCase().includes(result.cuenta!.toLowerCase()) ||
+            result.cuenta!.toLowerCase().includes(a.nombre.toLowerCase())
+          );
+          if (matchedAcc) setAccountId(matchedAcc.id);
+        }
+
+        const targetCategories = (result.tipo || type) === "gasto" ? expenseCategories : incomeCategories;
+        if (result.categoria) {
+          const matchedCat = targetCategories.find(c => 
+            c.toLowerCase().includes(result.categoria!.toLowerCase()) || 
+            result.categoria!.toLowerCase().includes(c.toLowerCase())
+          );
+          if (matchedCat) setCategory(matchedCat);
+        }
+        
+        showToastLocal("Campos completados por voz!");
+      } else {
+        setError("La IA no pudo clasificar este audio. Transcripción: \"" + data.text + "\"");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError("Error al procesar audio: " + (err.message || "intenta de nuevo"));
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
   const expenseCategories = [...(config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES)].sort((a, b) => a.localeCompare(b, 'es'));
   const incomeCategories = [...(config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"])].sort((a, b) => a.localeCompare(b, 'es'));
   const categories = type === "gasto" ? expenseCategories : incomeCategories;
 
   useEffect(() => {
     if (isOpen) {
-      setAmount("");
-      setDescription("");
-      setType(defaultType);
-      setAccountId("");
+      if (initialData) {
+        const targetType = initialData.tipo || defaultType;
+        setType(targetType);
+        setAmount(initialData.monto ? initialData.monto.toString() : "");
+        setDescription(initialData.descripcion || "");
+        
+        // Mapear cuenta
+        if (initialData.cuenta) {
+          const matchedAcc = accounts.find(a => 
+            a.nombre.toLowerCase().includes(initialData.cuenta!.toLowerCase()) ||
+            initialData.cuenta!.toLowerCase().includes(a.nombre.toLowerCase())
+          );
+          if (matchedAcc) {
+            setAccountId(matchedAcc.id);
+          } else {
+            setAccountId("");
+          }
+        } else {
+          setAccountId("");
+        }
+
+        // Mapear categoría
+        const targetCategories = targetType === "gasto" ? expenseCategories : incomeCategories;
+        if (initialData.categoria) {
+          const matchedCat = targetCategories.find(c => c.toLowerCase().includes(initialData.categoria!.toLowerCase()) || initialData.categoria!.toLowerCase().includes(c.toLowerCase()));
+          setCategory(matchedCat || (targetCategories.length > 0 ? targetCategories[0] : ""));
+        } else {
+          setCategory(targetCategories.length > 0 ? targetCategories[0] : "");
+        }
+      } else {
+        setAmount("");
+        setDescription("");
+        setType(defaultType);
+        setAccountId("");
+        setCategory(categories.length > 0 ? categories[0] : "");
+      }
       setDate(new Date().toISOString().split('T')[0]);
       setError(null);
     }
-  }, [isOpen, defaultType]);
+  }, [isOpen, defaultType, initialData, accounts]);
 
   useEffect(() => {
     if (isOpen && categories.length > 0 && !category) {
       setCategory(categories[0]);
     }
-  }, [isOpen, categories]);
+  }, [isOpen, categories, category]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,10 +256,44 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
               <TrendingUp size={12} /> Ingreso
             </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button 
+              type="button"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={voiceLoading}
+              title="Llenar con voz"
+              className={`p-2 rounded-xl transition-all cursor-pointer ${
+                isRecording 
+                  ? 'bg-rose-500 text-white animate-pulse shadow-md shadow-rose-500/20' 
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-foreground/50 hover:text-foreground'
+              }`}
+            >
+              {voiceLoading ? (
+                <Loader2 size={16} className="animate-spin text-indigo-500" />
+              ) : isRecording ? (
+                <Square size={16} className="fill-current" />
+              ) : (
+                <Mic size={16} />
+              )}
+            </button>
+            <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors cursor-pointer text-foreground/50 hover:text-foreground">
+              <X size={20} />
+            </button>
+          </div>
         </div>
+        
+        {toastLocal && (
+          <div className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-center py-2 px-4 rounded-xl text-xs font-bold mb-3 animate-in fade-in duration-300">
+            {toastLocal}
+          </div>
+        )}
+        
+        {isRecording && (
+          <div className="bg-rose-500/10 border border-rose-500/10 text-rose-500 dark:text-rose-400 text-center py-3 px-4 rounded-xl text-[10px] font-bold mb-3 flex items-center justify-center gap-2 animate-in zoom-in-95 duration-200">
+            <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+            Escuchando audio... Haz clic en el botón de detener para procesar
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold ${type === 'gasto' ? 'text-red-400' : 'text-green-400'}`}>$</span>

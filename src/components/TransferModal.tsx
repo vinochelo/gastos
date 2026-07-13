@@ -1,18 +1,167 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccounts } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, increment, writeBatch, Timestamp } from "firebase/firestore";
-import { X, ArrowRight, Loader2, Calendar } from "lucide-react";
+import { X, ArrowRight, Loader2, Calendar, Mic, Square } from "lucide-react";
+import { getApiUrl } from "@/lib/api";
 
-export default function TransferModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+interface TransferModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  initialData?: {
+    monto?: number;
+    fromId?: string;
+    toId?: string;
+    fromCuenta?: string;
+    toCuenta?: string;
+  } | null;
+}
+
+export default function TransferModal({ isOpen, onClose, initialData = null }: TransferModalProps) {
   const { accounts } = useAccounts();
   const [amount, setAmount] = useState("");
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Recording voice states
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [toastLocal, setToastLocal] = useState<string | null>(null);
+
+  const showToastLocal = (msg: string) => {
+    setToastLocal(msg);
+    setTimeout(() => setToastLocal(null), 3000);
+  };
+
+  const startRecording = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        await handleVoiceUpload(audioBlob);
+      };
+
+      setMediaRecorder(recorder);
+      recorder.start();
+      setIsRecording(true);
+    } catch (err: any) {
+      console.error(err);
+      alert("No se pudo acceder al micrófono. Por favor concede permisos.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const handleVoiceUpload = async (blob: Blob) => {
+    if (!auth.currentUser) return;
+    setVoiceLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "voice.webm");
+      formData.append("userId", auth.currentUser.uid);
+
+      const res = await fetch(getApiUrl("/api/voice-input"), {
+        method: "POST",
+        body: formData,
+      });
+      
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      if (data.result) {
+        const result = data.result;
+        if (result.monto) setAmount(result.monto.toString());
+        
+        const originName = result.fromCuenta || result.cuentaAnterior || result.from;
+        const destName = result.toCuenta || result.cuenta || result.to;
+
+        if (originName) {
+          const matchedAcc = accounts.find(a => 
+            a.nombre.toLowerCase().includes(originName.toLowerCase()) ||
+            originName.toLowerCase().includes(a.nombre.toLowerCase())
+          );
+          if (matchedAcc) setFromId(matchedAcc.id);
+        }
+
+        if (destName) {
+          const matchedAcc = accounts.find(a => 
+            a.nombre.toLowerCase().includes(destName.toLowerCase()) ||
+            destName.toLowerCase().includes(a.nombre.toLowerCase())
+          );
+          if (matchedAcc) setToId(matchedAcc.id);
+        }
+        
+        showToastLocal("Campos completados por voz!");
+      } else {
+        setError("La IA no pudo clasificar la transferencia.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError("Error al procesar audio: " + (err.message || "intenta de nuevo"));
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setAmount(initialData.monto ? initialData.monto.toString() : "");
+        
+        // Mapear fromCuenta
+        if (initialData.fromCuenta) {
+          const matchedAcc = accounts.find(a => 
+            a.nombre.toLowerCase().includes(initialData.fromCuenta!.toLowerCase()) ||
+            initialData.fromCuenta!.toLowerCase().includes(a.nombre.toLowerCase())
+          );
+          setFromId(matchedAcc ? matchedAcc.id : "");
+        } else if (initialData.fromId) {
+          setFromId(initialData.fromId);
+        } else {
+          setFromId("");
+        }
+
+        // Mapear toCuenta
+        if (initialData.toCuenta) {
+          const matchedAcc = accounts.find(a => 
+            a.nombre.toLowerCase().includes(initialData.toCuenta!.toLowerCase()) ||
+            initialData.toCuenta!.toLowerCase().includes(a.nombre.toLowerCase())
+          );
+          setToId(matchedAcc ? matchedAcc.id : "");
+        } else if (initialData.toId) {
+          setToId(initialData.toId);
+        } else {
+          setToId("");
+        }
+      } else {
+        setAmount("");
+        setFromId("");
+        setToId("");
+      }
+      setDate(new Date().toISOString().split('T')[0]);
+    }
+  }, [isOpen, initialData, accounts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,13 +227,54 @@ export default function TransferModal({ isOpen, onClose }: { isOpen: boolean, on
             <h2 className="text-xl font-bold">Transferencia</h2>
             <p className="text-xs text-gray-400">Entre tus cuentas</p>
           </div>
-          <button 
-            onClick={onClose} 
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button 
+              type="button"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={voiceLoading}
+              title="Llenar con voz"
+              className={`p-2 rounded-xl transition-all cursor-pointer ${
+                isRecording 
+                  ? 'bg-rose-500 text-white animate-pulse shadow-md shadow-rose-500/20' 
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-foreground/50 hover:text-foreground'
+              }`}
+            >
+              {voiceLoading ? (
+                <Loader2 size={16} className="animate-spin text-indigo-500" />
+              ) : isRecording ? (
+                <Square size={16} className="fill-current" />
+              ) : (
+                <Mic size={16} />
+              )}
+            </button>
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors cursor-pointer text-foreground/50 hover:text-foreground"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
+
+        {toastLocal && (
+          <div className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-center py-2 px-4 rounded-xl text-xs font-bold mb-3 animate-in fade-in duration-300">
+            {toastLocal}
+          </div>
+        )}
+
+        {isRecording && (
+          <div className="bg-rose-500/10 border border-rose-500/10 text-rose-500 dark:text-rose-400 text-center py-3 px-4 rounded-xl text-[10px] font-bold mb-3 flex items-center justify-center gap-2 animate-in zoom-in-95 duration-200">
+            <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+            Escuchando audio... Haz clic en el botón de detener para procesar
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-500/10 text-red-500 text-center py-2 px-4 rounded-xl text-xs font-bold mb-3">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="relative">

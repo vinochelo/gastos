@@ -8,16 +8,17 @@ import { addDoc, collection } from "firebase/firestore";
 interface AccountConfig {
   icon: LucideIcon;
   color: string;
+  glow: string;
 }
 
 const ACCOUNT_TYPES: Record<string, AccountConfig> = {
-  "Produbanco": { icon: CreditCard, color: "bg-green-500/10 text-green-600" },
-  "Guayaquil": { icon: CreditCard, color: "bg-pink-500/10 text-pink-600" },
-  "DeUna": { icon: Wallet, color: "bg-yellow-500/10 text-yellow-600" },
-  "Peigo": { icon: Wallet, color: "bg-purple-500/10 text-purple-600" },
-  "American Express": { icon: CreditCard, color: "bg-blue-500/10 text-blue-600" },
-  "Efectivo": { icon: Banknote, color: "bg-gray-500/10 text-gray-600" },
-  "Default": { icon: Wallet, color: "bg-foreground/5 text-foreground/50" }
+  "Produbanco": { icon: CreditCard, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", glow: "bg-emerald-500/5 dark:bg-emerald-500/2" },
+  "Guayaquil": { icon: CreditCard, color: "bg-pink-500/10 text-pink-600 dark:text-pink-400", glow: "bg-pink-500/5 dark:bg-pink-500/2" },
+  "DeUna": { icon: Wallet, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400", glow: "bg-amber-500/5 dark:bg-amber-500/2" },
+  "Peigo": { icon: Wallet, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400", glow: "bg-purple-500/5 dark:bg-purple-500/2" },
+  "American Express": { icon: CreditCard, color: "bg-sky-500/10 text-sky-600 dark:text-sky-400", glow: "bg-sky-500/5 dark:bg-sky-500/2" },
+  "Efectivo": { icon: Banknote, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400", glow: "bg-slate-500/5 dark:bg-slate-500/2" },
+  "Default": { icon: Wallet, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400", glow: "bg-indigo-500/5 dark:bg-indigo-500/2" }
 };
 
 export default function CuentasPage() {
@@ -39,14 +40,19 @@ export default function CuentasPage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+    <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header className="flex justify-between items-center py-4">
         <div>
-          <h1 className="text-3xl font-black italic">MIS CUENTAS</h1>
-          <p className="text-foreground/50">Gestiona tus fuentes de dinero</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Patrimonio</p>
+          <h1 className="text-3xl font-black tracking-tight text-foreground">Mis Cuentas</h1>
+          <p className="text-xs text-foreground/50 mt-1 font-semibold">Administra tus saldos y fuentes de fondos</p>
         </div>
-        <button className="bg-primary text-white p-3 rounded-2xl shadow-lg" onClick={handleInitAccounts}>
-          <Plus size={24} />
+        <button 
+          onClick={handleInitAccounts}
+          title="Inicializar Cuentas"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer"
+        >
+          <Plus size={22} />
         </button>
       </header>
 
@@ -56,20 +62,23 @@ export default function CuentasPage() {
           const Icon = Config.icon;
           
           return (
-            <div key={acc.id} className="glass p-6 rounded-[2rem] flex items-center justify-between shadow-sm group">
-              <div className="flex items-center gap-5">
-                <div className={`p-4 rounded-2xl ${Config.color}`}>
-                   <Icon size={28} />
+            <div key={acc.id} className="glass p-5 rounded-3xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden glass-glow">
+              <div className={`absolute top-0 right-0 -mt-6 -mr-6 w-20 h-20 ${Config.glow} rounded-full blur-xl pointer-events-none`} />
+              
+              <div className="flex items-center gap-4 relative z-10">
+                <div className={`p-3.5 rounded-2xl ${Config.color} flex items-center justify-center`}>
+                   <Icon size={24} />
                 </div>
                 <div>
-                  <h3 className="font-black text-xl leading-none">{acc.nombre}</h3>
-                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-30 mt-1">Cuenta Activa</p>
+                  <h3 className="font-extrabold text-lg text-foreground tracking-tight leading-tight">{acc.nombre}</h3>
+                  <p className="text-[9px] font-extrabold uppercase tracking-wider text-foreground/45 mt-0.5">Saldo Disponible</p>
                 </div>
               </div>
-              <div className="flex flex-col items-end">
-                 <p className="text-2xl font-black">${(acc.saldo || 0).toLocaleString('es-EC')}</p>
-                 <button className="opacity-0 group-hover:opacity-100 transition-opacity p-2">
-                    <MoreVertical size={16} />
+              
+              <div className="flex flex-col items-end relative z-10">
+                 <p className="text-xl font-black text-foreground tracking-tight">${(acc.saldo || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</p>
+                 <button className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity p-1 text-foreground cursor-pointer">
+                    <MoreVertical size={14} />
                  </button>
               </div>
             </div>
@@ -77,11 +86,17 @@ export default function CuentasPage() {
         })}
 
         {accounts.length === 0 && !loading && (
-          <div className="col-span-full py-12 text-center glass rounded-[2.5rem] space-y-4 border-dashed border-2">
-             <p className="text-foreground/40 font-medium">No hay cuentas configuradas</p>
+          <div className="col-span-full py-16 text-center glass rounded-3xl border-dashed border-2 border-border flex flex-col items-center justify-center p-6 space-y-4">
+             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+               <Wallet size={24} />
+             </div>
+             <div className="max-w-xs">
+               <p className="text-sm text-foreground/60 font-semibold">No hay cuentas configuradas</p>
+               <p className="text-xs text-foreground/40 mt-1">Crea tus cuentas para comenzar a organizar tus fondos.</p>
+             </div>
              <button 
               onClick={handleInitAccounts}
-              className="text-primary font-black uppercase text-xs tracking-widest"
+              className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer"
              >
                 Inicializar cuentas por defecto
              </button>

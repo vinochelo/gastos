@@ -67,6 +67,7 @@ ${accountNames.join(", ")}
 
 **REGLAS DE MONTO:**
 - "centavos", "ctvs", "céntimos" = dividir entre 100 (ej: "35 centavos" = 0.35)
+- **Retención del Contexto de Centavos**: Si el usuario menciona "centavos" (o ctvs) en un gasto dentro de una lista o secuencia (ej: "gasté 25 centavos en el bus luego 45 y luego 35"), asume que los montos subsiguientes en la misma frase u oración que no tengan unidad explícita también se refieren a centavos (dividir entre 100: 0.25, 0.45, 0.35) a menos que cambie de contexto explícitamente (ej: "y luego 5 dólares").
 - "uno", "una" = 1; "dos" = 2; etc.
 - "$50", "50 pesos", "50" = 50
 - Si hay varios montos separados por "más", "y", "+", crea un item por cada uno
@@ -82,9 +83,12 @@ Estructura exacta:
   "items": [
     {
       "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "ayuda" | "enlace_web",
-      "monto": número (OBLIGATORIO para gasto/ingreso/transferencia/reverso/editar, usa decimales con punto: 0.35),
-      "categoria": "categoría detectada del usuario o común (opcional en editar si no se especifica)",
-      "cuenta": "nombre de la cuenta donde se hizo (usa la primera si hay varias, o 'Efectivo' por defecto)",
+      "monto": número (monto nuevo o detectado, usa decimales con punto: 0.35),
+      "montoAnterior": número (monto incorrecto anterior que se está corrigiendo o editando, ej: "era 50 no 70" -> monto: 50, montoAnterior: 70),
+      "categoria": "categoría nueva o detectada",
+      "categoriaAnterior": "categoría incorrecta anterior que se quiere cambiar (ej: 'era comida no cine' -> categoria: 'Comida', categoriaAnterior: 'Cine')",
+      "cuenta": "nombre de la cuenta nueva o detectada",
+      "cuentaAnterior": "nombre de la cuenta incorrecta anterior que se quiere cambiar (ej: 'era efectivo no banco' -> cuenta: 'Efectivo', cuentaAnterior: 'Cuenta Bancaria')",
       "descripcion": "descripción o lo que escribió el usuario",
       "fecha": "YYYY-MM-DD (solo si menciona fecha específica, si no omite el campo)",
       "nuevoTipo": "gasto | ingreso (SOLO para tipo 'editar', si el usuario quiere cambiar el tipo de la transacción)"

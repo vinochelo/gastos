@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebase-admin";
 
-export async function GET(request: NextRequest) {
-  const code = request.nextUrl.searchParams.get("code");
+export const dynamic = "force-static";
 
-  if (!code) {
-    return NextResponse.json({ error: "Código requerido" }, { status: 400 });
-  }
-
+export async function POST(request: NextRequest) {
   try {
+    const { code } = await request.json();
+
+    if (!code) {
+      return NextResponse.json({ error: "Código requerido" }, { status: 400 });
+    }
+
     const doc = await adminDb.collection("linkingCodes").doc(code).get();
 
     if (!doc.exists) {
@@ -35,4 +37,8 @@ export async function GET(request: NextRequest) {
     console.error(error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
+}
+
+export async function GET() {
+  return NextResponse.json({ error: "Use POST method" }, { status: 400 });
 }

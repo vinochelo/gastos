@@ -4,6 +4,7 @@ import { adminDb, admin } from "@/lib/firebase-admin";
 export const dynamic = "force-static";
 
 function generateCode(): string {
+  // Genera un código de 6 dígitos aleatorio
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
@@ -17,9 +18,10 @@ export async function POST(request: Request) {
 
     const code = generateCode();
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutos de validez
 
-    await adminDb.collection("linkingCodes").doc(code).set({
+    // Guardar en la colección 'mobileAuthCodes'
+    await adminDb.collection("mobileAuthCodes").doc(code).set({
       userId: userId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
@@ -31,11 +33,11 @@ export async function POST(request: Request) {
       expiresAt: expiresAt.toISOString()
     });
   } catch (error) {
-    console.error("Error generating code:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    console.error("Error generating mobile auth code:", error);
+    return NextResponse.json({ error: "Error interno al generar código" }, { status: 500 });
   }
 }
 
 export async function GET() {
-  return NextResponse.json({ error: "Use POST method" }, { status: 400 });
+  return NextResponse.json({ error: "Use el método POST" }, { status: 400 });
 }

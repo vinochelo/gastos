@@ -38,6 +38,7 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [period, setPeriod] = useState<'mes' | '30dias' | 'todo'>('mes');
+  const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null);
 
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -97,11 +98,11 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
 
   if (selectedCategory) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
+      <div className="glass rounded-3xl p-6 border border-border shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <button 
             onClick={handleBack}
-            className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
             <ChevronLeft size={20} />
           </button>
@@ -116,27 +117,27 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
             const ts = tx.timestamp;
             const date = ts ? ('toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any))) : new Date();
             return (
-              <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 group">
+              <div key={tx.id} className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/40 border border-border/20 group">
                 <div className="flex-1 min-w-0 pr-2">
-                  <p className="text-sm font-medium truncate">{tx.descripcion || tx.categoria}</p>
+                  <p className="text-sm font-bold truncate">{tx.descripcion || tx.categoria}</p>
                   <p className="text-[10px] opacity-40">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
+                  <p className={`text-sm font-black ${tx.tipo === 'ingreso' ? 'text-emerald-500' : ''}`}>
                     {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                   </p>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button 
                       onClick={() => onEdit?.(tx)}
-                      className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg shrink-0"
+                      className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg shrink-0 text-indigo-500"
                     >
-                      <Settings size={14} className="text-blue-500" />
+                      <Settings size={14} />
                     </button>
                     <button 
                       onClick={() => onDelete?.(tx)}
-                      className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg shrink-0"
+                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg shrink-0 text-rose-500"
                     >
-                      <Trash2 size={14} className="text-red-500" />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -145,7 +146,7 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
           })}
           
           {categoryTransactions.length === 0 && (
-            <p className="text-center py-8 opacity-40">Sin transacciones</p>
+            <p className="text-center py-8 opacity-40 text-sm">Sin transacciones</p>
           )}
         </div>
       </div>
@@ -154,38 +155,38 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
 
   if (transactions.length === 0 || categoryData.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-gray-700">
-        <p className="text-base opacity-40">Sin datos de {activeType}s</p>
+      <div className="glass rounded-3xl p-8 text-center border border-border shadow-sm animate-in fade-in">
+        <p className="text-sm opacity-40">Sin datos de {activeType}s</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700">
+    <div className="glass rounded-3xl p-6 border border-border shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-8 bg-indigo-500 rounded-full" />
+          <div className="w-1.5 h-6 bg-indigo-500 rounded-full animate-pulse" />
           <div>
-            <h3 className="text-xl font-bold tracking-tight">Distribución</h3>
+            <h3 className="text-lg font-black tracking-tight">Distribución</h3>
             <div className="flex gap-2 mt-1">
               <button 
                 type="button"
                 onClick={() => setPeriod('mes')}
-                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all ${period === 'mes' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-extrabold' : 'opacity-45 hover:opacity-100'}`}
+                className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded transition-all cursor-pointer ${period === 'mes' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400' : 'opacity-45 hover:opacity-100'}`}
               >
                 Este Mes
               </button>
               <button 
                 type="button"
                 onClick={() => setPeriod('30dias')}
-                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all ${period === '30dias' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-extrabold' : 'opacity-45 hover:opacity-100'}`}
+                className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded transition-all cursor-pointer ${period === '30dias' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400' : 'opacity-45 hover:opacity-100'}`}
               >
                 30 Días
               </button>
               <button 
                 type="button"
                 onClick={() => setPeriod('todo')}
-                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all ${period === 'todo' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-extrabold' : 'opacity-45 hover:opacity-100'}`}
+                className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded transition-all cursor-pointer ${period === 'todo' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400' : 'opacity-45 hover:opacity-100'}`}
               >
                 Todo
               </button>
@@ -193,21 +194,21 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
           </div>
         </div>
         
-        <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
+        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
           <button 
             type="button"
-            onClick={() => setActiveType('gasto')}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeType === 'gasto' ? 'bg-white dark:bg-gray-600 shadow-sm' : ''
+            onClick={() => { setActiveType('gasto'); setHoveredCategory(null); }}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeType === 'gasto' ? 'bg-white dark:bg-gray-700 text-rose-500 shadow-sm' : 'text-foreground/50'
             }`}
           >
             Gastos
           </button>
           <button 
             type="button"
-            onClick={() => setActiveType('ingreso')}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeType === 'ingreso' ? 'bg-white dark:bg-gray-600 shadow-sm' : ''
+            onClick={() => { setActiveType('ingreso'); setHoveredCategory(null); }}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeType === 'ingreso' ? 'bg-white dark:bg-gray-700 text-emerald-500 shadow-sm' : 'text-foreground/50'
             }`}
           >
             Ingresos
@@ -216,26 +217,40 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
       </div>
 
       <div className="flex flex-col lg:flex-row items-center gap-8">
-        <div className="relative h-64 w-64 flex-shrink-0">
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-            <p className="text-xs font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
-            <p className="text-2xl font-bold">${total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+        <div className="relative h-56 w-56 flex-shrink-0 mx-auto">
+          {/* Central Donut text */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none p-4 text-center">
+            {hoveredCategory ? (
+              <div className="animate-in fade-in zoom-in-95 duration-200">
+                <p className="text-[9px] font-extrabold uppercase tracking-wider text-indigo-500/80 truncate w-32">{hoveredCategory.name}</p>
+                <p className="text-xl font-black text-foreground mt-0.5 leading-none">${hoveredCategory.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+                <p className="text-[10px] font-bold text-foreground/45 mt-1">{((hoveredCategory.value / total) * 100).toFixed(1)}%</p>
+              </div>
+            ) : (
+              <div className="animate-in fade-in duration-200">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 leading-none">Total</p>
+                <p className="text-2xl font-black text-foreground mt-1 tracking-tight leading-none">${total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+              </div>
+            )}
           </div>
           
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={categoryData}
-                innerRadius={55}
-                outerRadius={100}
-                paddingAngle={2}
+                innerRadius={65}
+                outerRadius={95}
+                paddingAngle={3}
                 dataKey="value"
+                onMouseEnter={(_, index) => setHoveredCategory(categoryData[index])}
+                onMouseLeave={() => setHoveredCategory(null)}
               >
                 {categoryData.map((_, index: number) => (
                   <Cell 
                     key={`cell-${index}`} 
                     fill={COLORS[index % COLORS.length]}
                     stroke="transparent"
+                    className="outline-none cursor-pointer hover:opacity-85 transition-opacity duration-200"
                   />
                 ))}
               </Pie>
@@ -243,26 +258,38 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
           </ResponsiveContainer>
         </div>
 
-        <div className="flex-1 w-full space-y-0">
+        <div className="flex-1 w-full space-y-1">
           {categoryData.map((entry, index: number) => {
             const percentage = ((entry.value / total) * 100).toFixed(1);
+            const color = COLORS[index % COLORS.length];
             
             return (
               <button
                 key={entry.name}
                 onClick={() => handleCategoryClick(entry.name)}
-                className="w-full flex items-center justify-between py-1.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2 transition-colors active:bg-gray-100 dark:active:bg-gray-600"
+                onMouseEnter={() => setHoveredCategory(entry)}
+                onMouseLeave={() => setHoveredCategory(null)}
+                className="w-full text-left rounded-xl p-2 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all group"
               >
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-4 h-4 rounded-full shadow-sm"
-                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                  />
-                  <span className="text-sm font-medium">{entry.name}</span>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-xs font-bold text-foreground truncate">{entry.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-foreground/50">${entry.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-xs font-extrabold text-foreground w-8 text-right">{percentage}%</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium opacity-60">${entry.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                  <span className="text-base font-bold w-12 text-right">{percentage}%</span>
+                {/* Visual Progress Bar */}
+                <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${percentage}%`, backgroundColor: color }}
+                  />
                 </div>
               </button>
             );

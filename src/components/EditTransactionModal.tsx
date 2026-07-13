@@ -21,7 +21,11 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
   const [description, setDescription] = useState(transaction.descripcion || "");
   const [category, setCategory] = useState(transaction.categoria);
   const [accountId, setAccountId] = useState(transaction.accountId || "");
+  const [fromId, setFromId] = useState(transaction.fromId || "");
+  const [toId, setToId] = useState(transaction.toId || "");
   const [loading, setLoading] = useState(false);
+
+  const isTransfer = transaction.tipo === "transferencia";
 
   const expenseCategories = [...(config?.expenseCategories?.length ? config.expenseCategories : DEFAULT_CATEGORIES)].sort((a, b) => a.localeCompare(b, 'es'));
   const incomeCategories = [...(config?.incomeCategories?.length ? config.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"])].sort((a, b) => a.localeCompare(b, 'es'));
@@ -32,6 +36,8 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
     setDescription(transaction.descripcion || "");
     setCategory(transaction.categoria);
     setAccountId(transaction.accountId || "");
+    setFromId(transaction.fromId || "");
+    setToId(transaction.toId || "");
   }, [transaction]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,44 +48,88 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
     try {
       const newMonto = parseFloat(amount);
       const oldMonto = transaction.monto;
-      const diff = newMonto - oldMonto;
       
-      const updates: Record<string, unknown> = {
-        monto: newMonto,
-        descripcion: description,
-        categoria: category,
-      };
-      
-      if (accountId !== transaction.accountId) {
-        updates.accountId = accountId;
-      }
+      if (isTransfer) {
+        if (!fromId || !toId || fromId === toId) {
+          alert("Selecciona cuentas de origen y destino válidas y diferentes.");
+          setLoading(false);
+          return;
+        }
 
-      await updateDoc(doc(db, "transactions", transaction.id), updates);
+        const fromAccount = accounts.find(a => a.id === fromId);
+        const toAccount = accounts.find(a => a.id === toId);
 
-      const hasAmountChanged = diff !== 0;
-      const hasAccountChanged = accountId !== transaction.accountId;
+        const updates: Record<string, unknown> = {
+          monto: newMonto,
+          descripcion: description || `Transferencia: ${fromAccount?.nombre} → ${toAccount?.nombre}`,
+          fromId,
+          toId,
+          fromNombre: fromAccount?.nombre,
+          toNombre: toAccount?.nombre,
+        };
 
-      if (hasAmountChanged || hasAccountChanged) {
-        const mult = transaction.tipo === 'ingreso' ? 1 : -1;
-        
-        // 1. Revertir saldo en la cuenta original
-        if (transaction.accountId) {
-          await updateDoc(doc(db, "accounts", transaction.accountId), { 
-            saldo: increment(-mult * oldMonto) 
+        await updateDoc(doc(db, "transactions", transaction.id), updates);
+
+        // 1. Revertir saldo anterior
+        if (transaction.fromId) {
+          await updateDoc(doc(db, "accounts", transaction.fromId), { 
+            saldo: increment(oldMonto) 
           });
         }
-        
-        // 2. Aplicar saldo en la cuenta seleccionada (nueva o misma)
-        if (accountId) {
-          await updateDoc(doc(db, "accounts", accountId), { 
-            saldo: increment(mult * newMonto) 
+        if (transaction.toId) {
+          await updateDoc(doc(db, "accounts", transaction.toId), { 
+            saldo: increment(-oldMonto) 
           });
+        }
+
+        // 2. Aplicar nuevo saldo
+        await updateDoc(doc(db, "accounts", fromId), { 
+          saldo: increment(-newMonto) 
+        });
+        await updateDoc(doc(db, "accounts", toId), { 
+          saldo: increment(newMonto) 
+        });
+
+      } else {
+        const diff = newMonto - oldMonto;
+        const updates: Record<string, unknown> = {
+          monto: newMonto,
+          descripcion: description,
+          categoria: category,
+        };
+        
+        if (accountId !== transaction.accountId) {
+          updates.accountId = accountId;
+        }
+
+        await updateDoc(doc(db, "transactions", transaction.id), updates);
+
+        const hasAmountChanged = diff !== 0;
+        const hasAccountChanged = accountId !== transaction.accountId;
+
+        if (hasAmountChanged || hasAccountChanged) {
+          const mult = transaction.tipo === 'ingreso' ? 1 : -1;
+          
+          // 1. Revertir saldo en la cuenta original
+          if (transaction.accountId) {
+            await updateDoc(doc(db, "accounts", transaction.accountId), { 
+              saldo: increment(-mult * oldMonto) 
+            });
+          }
+          
+          // 2. Aplicar saldo en la cuenta seleccionada (nueva o misma)
+          if (accountId) {
+            await updateDoc(doc(db, "accounts", accountId), { 
+              saldo: increment(mult * newMonto) 
+            });
+          }
         }
       }
 
       onClose();
     } catch (error) {
       console.error(error);
+      alert("Error al guardar cambios");
     } finally {
       setLoading(false);
     }
@@ -117,33 +167,62 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
-              placeholder="Descripción del gasto..."
+              placeholder="Descripción..."
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Categoría</label>
-              <select 
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
-              >
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+          {isTransfer ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Desde</label>
+                <select 
+                  value={fromId}
+                  onChange={(e) => setFromId(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-semibold"
+                  required
+                >
+                  <option value="">Seleccionar...</option>
+                  {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Hacia</label>
+                <select 
+                  value={toId}
+                  onChange={(e) => setToId(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm font-semibold"
+                  required
+                >
+                  <option value="">Seleccionar...</option>
+                  {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
+                </select>
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Cuenta</label>
-              <select 
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
-              >
-                <option value="">Seleccionar...</option>
-                {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
-              </select>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Categoría</label>
+                <select 
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Cuenta</label>
+                <select 
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
+                >
+                  <option value="">Seleccionar...</option>
+                  {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
+                </select>
+              </div>
             </div>
-          </div>
+          )}
 
           <button 
             type="submit"

@@ -103,18 +103,37 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           .limit(50)
           .get();
 
-        const match = recentSnap.docs.find(doc => {
+        let match = recentSnap.docs.find(doc => {
           const data = doc.data();
-          const matchMonto = Math.abs(data.monto) === monto;
-          const matchCat = item.categoriaAnterior ? data.categoria === item.categoriaAnterior : true;
+          const matchMonto = !monto || Math.abs(data.monto) === monto;
+          const matchCat = item.categoriaAnterior ? data.categoria?.toLowerCase() === item.categoriaAnterior.toLowerCase() : false;
           return matchMonto && matchCat;
         });
 
+        if (!match && item.categoriaAnterior) {
+          match = recentSnap.docs.find(doc => {
+            const data = doc.data();
+            return data.categoria?.toLowerCase() === item.categoriaAnterior.toLowerCase();
+          });
+        }
+
+        if (!match && monto > 0) {
+          match = recentSnap.docs.find(doc => {
+            const data = doc.data();
+            return Math.abs(data.monto) === monto;
+          });
+        }
+
+        if (!match && recentSnap.docs.length > 0) {
+          match = recentSnap.docs[0];
+        }
+
         if (match) {
+          const oldCat = match.data().categoria;
           batch.update(match.ref, { categoria: item.categoria });
-          results.push(`🔄 Reclasificado: $${monto} a "${item.categoria}".`);
+          results.push(`🔄 Reclasificado: $${Math.abs(match.data().monto)} de "${oldCat}" a "${item.categoria}".`);
         } else {
-          results.push(`⚠️ No encontré el gasto de $${monto} entre los últimos 50 movimientos.`);
+          results.push(`⚠️ No encontré ninguna transacción para reclasificar.`);
         }
       } 
       else if (item.tipo === "transferencia") {
@@ -247,87 +266,115 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
           results.push(`⚠️ No encontré transacción de $${montoReverso} para revertir.`);
         }
       } else if (item.tipo === "editar") {
-        const montoNuevo = Math.abs(item.monto);
-        const cuentaBuscada = item.cuenta?.toLowerCase();
-        
         const recentSnap = await adminDb.collection("transactions")
           .where("userId", "==", userId)
           .orderBy("timestamp", "desc")
           .limit(20)
           .get();
         
-        let matchFound = false;
+        let matchDoc = null;
+        
+        // Criterios de búsqueda:
+        const buscarMonto = item.montoAnterior ? Math.abs(item.montoAnterior) : (item.monto ? Math.abs(item.monto) : null);
+        const buscarCuenta = item.cuentaAnterior?.toLowerCase();
+        const buscarCat = item.categoriaAnterior?.toLowerCase();
 
-        for (const doc of recentSnap.docs) {
-          const data = doc.data();
-          const matchMonto = Math.abs(data.monto) === montoNuevo;
-          const matchCuenta = !cuentaBuscada || 
-            (data.accountId && accountsSnap.docs.some(a => a.id === data.accountId && a.data().nombre.toLowerCase().includes(cuentaBuscada)));
-          
-          if (matchMonto && matchCuenta) {
-            const oldTipo = data.tipo;
-            const oldMonto = Math.abs(data.monto);
-            const oldAccountId = data.accountId;
+        if (buscarMonto || buscarCuenta || buscarCat) {
+          matchDoc = recentSnap.docs.find(doc => {
+            const data = doc.data();
+            const matchM = buscarMonto ? Math.abs(data.monto) === buscarMonto : true;
             
-            // 1. Revertir saldo cuenta vieja
-            const multReverso = oldTipo === "gasto" ? 1 : -1;
-            if (oldAccountId) {
-              const oldAccountDoc = accountsSnap.docs.find(a => a.id === oldAccountId);
-              if (oldAccountDoc) {
-                batch.update(oldAccountDoc.ref, { saldo: admin.firestore.FieldValue.increment(multReverso * oldMonto) });
-              }
+            let matchAc = true;
+            if (buscarCuenta && data.accountId) {
+              const acc = accountsSnap.docs.find(a => a.id === data.accountId);
+              matchAc = acc ? acc.data().nombre.toLowerCase().includes(buscarCuenta) : false;
             }
-
-            // 2. Determinar nuevos valores
-            const finalTipo = item.nuevoTipo || oldTipo;
-            const finalCategoria = item.categoria || data.categoria;
             
-            let newAccountId = oldAccountId;
-            if (item.cuenta) {
-               const newAccountDoc = accountsSnap.docs.find(d => 
-                d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||
-                item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
-              );
-              if (newAccountDoc) newAccountId = newAccountDoc.id;
-            }
-
-            // 3. Crear nueva transacción
-            const finalDesc = data.descripcion;
-            const finalMonto = montoNuevo;
-            const multNuevo = finalTipo === "ingreso" ? 1 : -1;
-            const timestamp = data.timestamp; 
-
-            batch.set(adminDb.collection("transactions").doc(), {
-              userId,
-              monto: finalMonto,
-              tipo: finalTipo,
-              accountId: newAccountId,
-              categoria: finalCategoria,
-              descripcion: finalDesc,
-              timestamp,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              fuente: "telegram_edit"
-            });
-
-            // 4. Aplicar nuevo saldo cuenta nueva
-            if (newAccountId) {
-              const newAccountDoc = accountsSnap.docs.find(a => a.id === newAccountId);
-              if (newAccountDoc) {
-                batch.update(newAccountDoc.ref, { saldo: admin.firestore.FieldValue.increment(multNuevo * finalMonto) });
-              }
-            }
-
-            // 5. Eliminar old
-            batch.delete(doc.ref);
+            const matchC = buscarCat ? data.categoria?.toLowerCase() === buscarCat : true;
             
-            results.push(`✏️ EDITADO: $${oldMonto} (${oldTipo}) -> $${finalMonto} (${finalTipo}) en ${finalCategoria}`);
-            matchFound = true;
-            break; 
-          }
+            return matchM && matchAc && matchC;
+          });
+        }
+        
+        // Fallback 1: Si no hay match con criterios anteriores pero sí con el monto especificado
+        if (!matchDoc && item.monto) {
+          matchDoc = recentSnap.docs.find(doc => Math.abs(doc.data().monto) === Math.abs(item.monto));
         }
 
-        if (!matchFound) {
-          results.push(`⚠️ No encontré transacción de $${montoNuevo} para editar.`);
+        // Fallback 2: La más reciente
+        if (!matchDoc && recentSnap.docs.length > 0) {
+          matchDoc = recentSnap.docs[0];
+        }
+
+        if (matchDoc) {
+          const data = matchDoc.data();
+          const oldTipo = data.tipo;
+          const oldMonto = Math.abs(data.monto);
+          const oldAccountId = data.accountId;
+          const isTransfer = oldTipo === "transferencia";
+
+          const finalMonto = item.monto ? Math.abs(item.monto) : oldMonto;
+          const finalTipo = item.nuevoTipo || oldTipo;
+          const finalCategoria = item.categoria || data.categoria;
+          
+          let newAccountId = oldAccountId;
+          if (item.cuenta) {
+            const newAccountDoc = accountsSnap.docs.find(d => 
+              d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||
+              item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
+            );
+            if (newAccountDoc) newAccountId = newAccountDoc.id;
+          }
+
+          // 1. Revertir saldo anterior
+          if (isTransfer) {
+            if (data.fromId) {
+              batch.update(adminDb.collection("accounts").doc(data.fromId), { saldo: admin.firestore.FieldValue.increment(oldMonto) });
+            }
+            if (data.toId) {
+              batch.update(adminDb.collection("accounts").doc(data.toId), { saldo: admin.firestore.FieldValue.increment(-oldMonto) });
+            }
+          } else if (oldAccountId) {
+            const multReverso = oldTipo === "gasto" ? 1 : -1;
+            const oldAccountDoc = accountsSnap.docs.find(a => a.id === oldAccountId);
+            if (oldAccountDoc) {
+              batch.update(oldAccountDoc.ref, { saldo: admin.firestore.FieldValue.increment(multReverso * oldMonto) });
+            }
+          }
+
+          // 2. Aplicar nuevo saldo
+          if (finalTipo === "transferencia") {
+            const fromId = data.fromId;
+            const toId = data.toId;
+            if (fromId) {
+              batch.update(adminDb.collection("accounts").doc(fromId), { saldo: admin.firestore.FieldValue.increment(-finalMonto) });
+            }
+            if (toId) {
+              batch.update(adminDb.collection("accounts").doc(toId), { saldo: admin.firestore.FieldValue.increment(finalMonto) });
+            }
+          } else if (newAccountId) {
+            const multNuevo = finalTipo === "ingreso" ? 1 : -1;
+            const newAccountDoc = accountsSnap.docs.find(a => a.id === newAccountId);
+            if (newAccountDoc) {
+              batch.update(newAccountDoc.ref, { saldo: admin.firestore.FieldValue.increment(multNuevo * finalMonto) });
+            }
+          }
+
+          // 3. Actualizar la transacción
+          const updates: Record<string, any> = {
+            monto: finalMonto,
+            tipo: finalTipo,
+            categoria: finalCategoria,
+            fuente: "telegram_edit"
+          };
+          if (newAccountId !== undefined && newAccountId !== null) updates.accountId = newAccountId;
+          if (item.descripcion) updates.descripcion = item.descripcion;
+
+          batch.update(matchDoc.ref, updates);
+          
+          results.push(`✏️ EDITADO: $${oldMonto} (${oldTipo}) -> $${finalMonto} (${finalTipo}) en ${finalCategoria}`);
+        } else {
+          results.push(`⚠️ No encontré ninguna transacción para editar.`);
         }
       } else {
         let accountDoc = accountsSnap.docs.find(d => 

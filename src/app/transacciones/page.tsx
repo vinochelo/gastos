@@ -53,83 +53,99 @@ export default function TransaccionesPage() {
   const handleDeleteTx = async (tx: Transaction) => {
     if (!confirm("¿Eliminar?")) return;
     try {
-      if (tx.accountId) {
+      if (tx.tipo === 'transferencia') {
+        if (tx.fromId) {
+          await updateDoc(doc(db, "accounts", tx.fromId), { saldo: increment(tx.monto) });
+        }
+        if (tx.toId) {
+          await updateDoc(doc(db, "accounts", tx.toId), { saldo: increment(-tx.monto) });
+        }
+      } else if (tx.accountId) {
         const mult = tx.tipo === 'ingreso' ? -1 : 1;
         await updateDoc(doc(db, "accounts", tx.accountId), { saldo: increment(mult * tx.monto) });
       }
       await deleteDoc(doc(db, "transactions", tx.id));
-    } catch { alert("Error"); }
+    } catch { alert("Error al eliminar"); }
   };
 
   return (
-    <div className="space-y-5 pb-28">
+    <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between py-2">
         <div>
-          <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
-          <h1 className="text-2xl font-bold tracking-tight">Transacciones</h1>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Historial Financiero</p>
+          <h1 className="text-3xl font-black tracking-tight text-foreground">Transacciones</h1>
         </div>
         <button 
           onClick={() => router.push('/ajustes')}
-          className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+          title="Ajustes"
+          className="w-10 h-10 rounded-xl bg-white dark:bg-gray-800 border border-border flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/75"
         >
-          <Settings size={16} className="opacity-50" />
+          <Settings size={18} className="opacity-80" />
         </button>
       </div>
 
       {/* Search */}
       <div className="relative">
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40" />
+        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40 text-foreground" />
         <input 
           type="text"
           placeholder="Buscar por descripción, categoría o monto..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 pl-10 rounded-xl text-sm"
+          className="w-full bg-white dark:bg-gray-800 border border-border/80 p-3.5 pl-11 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent transition-all shadow-sm text-foreground placeholder-foreground/30 font-medium"
         />
       </div>
 
       {/* Transactions */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {filteredTransactions.map((tx) => {
           const Icon = getCategoryIcon(tx.categoria);
           return (
-            <div key={tx.id} className="bg-white dark:bg-gray-800 rounded-xl p-4 flex items-center justify-between border border-gray-100 dark:border-gray-700 group">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  tx.tipo === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 
-                  tx.tipo === 'transferencia' ? 'bg-blue-100 dark:bg-blue-900/30' :
-                  'bg-purple-100 dark:bg-purple-900/30'
+            <div key={tx.id} className="glass rounded-2xl p-4 flex items-center justify-between border border-border shadow-sm hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-300 group glass-glow">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  tx.tipo === 'ingreso' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 
+                  tx.tipo === 'transferencia' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' :
+                  'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                 }`}>
                   {tx.tipo === 'ingreso' ? (
-                    <Plus size={18} className="text-green-600" />
+                    <Plus size={20} />
                   ) : tx.tipo === 'transferencia' ? (
-                    <Repeat size={18} className="text-blue-600" />
+                    <Repeat size={18} />
                   ) : (
-                    <Icon size={18} className="text-purple-600" />
+                    <Icon size={18} />
                   )}
                 </div>
-                <div>
-                  <p className="text-sm font-medium">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-xs opacity-40">{tx.categoria}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
+                  <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider mt-0.5">{tx.categoria}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
-                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toFixed(2)}
+              <div className="flex items-center gap-3">
+                <p className={`text-sm font-black ${
+                  tx.tipo === 'ingreso' ? 'text-emerald-500' : 
+                  tx.tipo === 'transferencia' ? 'text-indigo-500 dark:text-indigo-400' : 'text-foreground'
+                }`}>
+                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                 </p>
-                <button 
-                  onClick={() => setEditingTx(tx)}
-                  className="p-1.5 opacity-60 hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg"
-                >
-                  <Settings size={14} className="text-blue-500" />
-                </button>
-                <button 
-                  onClick={() => handleDeleteTx(tx)}
-                  className="p-1.5 opacity-60 hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
-                >
-                  <Trash2 size={14} className="text-red-500" />
-                </button>
+                
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-250">
+                  <button 
+                    onClick={() => setEditingTx(tx)}
+                    title="Editar"
+                    className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg text-indigo-500 transition-colors cursor-pointer"
+                  >
+                    <Settings size={14} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteTx(tx)}
+                    title="Eliminar"
+                    className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-rose-500 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           );

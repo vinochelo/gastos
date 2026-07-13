@@ -3,9 +3,9 @@
 
 
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccounts, useRecentTransactions, useUserConfig, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2 } from "lucide-react";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, AlertCircle } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
@@ -15,6 +15,7 @@ import { deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { getApiUrl } from "@/lib/api";
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -28,6 +29,111 @@ export default function Dashboard() {
   
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
+  // Voice recording state variables
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [isVoiceLoading, setIsVoiceLoading] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [initialVoiceData, setInitialVoiceData] = useState<any>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [timerInterval, setTimerInterval] = useState<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerInterval) clearInterval(timerInterval);
+    };
+  }, [timerInterval]);
+
+  const startRecording = async () => {
+    setVoiceError(null);
+    setRecordingDuration(0);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        
+        // Turn off recording light on device
+        stream.getTracks().forEach(track => track.stop());
+
+        await handleVoiceUpload(audioBlob);
+      };
+
+      setMediaRecorder(recorder);
+      recorder.start();
+      setIsRecording(true);
+
+      const interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      setTimerInterval(interval);
+
+    } catch (err: any) {
+      console.error(err);
+      alert("No se pudo acceder al micrófono. Por favor, concede los permisos correspondientes.");
+      setVoiceError("Permiso de micrófono denegado.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    setIsRecording(false);
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      setTimerInterval(null);
+    }
+  };
+
+  const handleVoiceUpload = async (blob: Blob) => {
+    if (!user) return;
+    setIsVoiceLoading(true);
+    setVoiceError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "voice.webm");
+      formData.append("userId", user.uid);
+
+      const res = await fetch(getApiUrl("/api/voice-input"), {
+        method: "POST",
+        body: formData,
+      });
+      
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.result) {
+        const result = data.result;
+        if (result.tipo === "transferencia") {
+          setInitialVoiceData(result);
+          setIsTransferModalOpen(true);
+        } else if (result.tipo === "gasto" || result.tipo === "ingreso") {
+          setInitialVoiceData(result);
+          setIsAddModalOpen(true);
+        } else {
+          alert(`Comando de voz detectado: ${result.tipo}. Mensaje: "${data.text}"`);
+        }
+      } else {
+        alert(`Trascripción: "${data.text}". No pude clasificar esta transacción.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setVoiceError(err.message || "Error al procesar la voz");
+      alert("Error de procesamiento de voz: " + (err.message || "Intenta de nuevo."));
+    } finally {
+      setIsVoiceLoading(false);
+    }
+  };
 
   const monthOptions = useMemo(() => {
     const options = [];
@@ -92,12 +198,19 @@ export default function Dashboard() {
   const handleDeleteTx = async (tx: Transaction) => {
     if (!confirm("¿Eliminar?")) return;
     try {
-      const mult = tx.tipo === 'ingreso' ? -1 : 1;
-      if (tx.accountId) {
+      if (tx.tipo === 'transferencia') {
+        if (tx.fromId) {
+          await updateDoc(doc(db, "accounts", tx.fromId), { saldo: increment(tx.monto) });
+        }
+        if (tx.toId) {
+          await updateDoc(doc(db, "accounts", tx.toId), { saldo: increment(-tx.monto) });
+        }
+      } else if (tx.accountId) {
+        const mult = tx.tipo === 'ingreso' ? -1 : 1;
         await updateDoc(doc(db, "accounts", tx.accountId), { saldo: increment(mult * tx.monto) });
       }
       await deleteDoc(doc(db, "transactions", tx.id));
-    } catch { alert("Error"); }
+    } catch { alert("Error al eliminar"); }
   };
 
   const getAccountBalance = (accountId: string) => {
@@ -106,10 +219,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-5 pb-28">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Header */}
+      <div className="flex items-center justify-between py-2">
         <div>
-          <p className="text-xs font-semibold opacity-40">Gestor de Gastos</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Panel de Control</p>
           <select
             value={`${selectedMonth}-${selectedYear}`}
             onChange={(e) => {
@@ -117,7 +231,7 @@ export default function Dashboard() {
               setSelectedMonth(m);
               setSelectedYear(y);
             }}
-            className="text-base font-bold bg-transparent border-none p-0 pr-6 m-0 focus:ring-0 text-foreground cursor-pointer capitalize font-sans tracking-tight focus:outline-none"
+            className="text-2xl font-black bg-transparent border-none p-0 pr-6 m-0 focus:ring-0 text-foreground cursor-pointer capitalize font-sans tracking-tight focus:outline-none hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
           >
             {monthOptions.map(opt => (
               <option key={`${opt.month}-${opt.year}`} value={`${opt.month}-${opt.year}`} className="bg-white dark:bg-gray-800 text-foreground text-sm">
@@ -127,136 +241,271 @@ export default function Dashboard() {
           </select>
         </div>
         <div className="flex gap-2">
+          {/* Mic Button */}
           <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-foreground text-background rounded-lg px-4 py-2 flex items-center justify-center gap-2 font-semibold text-xs"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isVoiceLoading}
+            title="Ingreso por voz"
+            className={`w-10 h-10 rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm ${
+              isRecording 
+                ? 'bg-rose-500 text-white shadow-rose-500/20' 
+                : 'bg-indigo-50 text-indigo-600 border border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/30'
+            }`}
           >
-            <Plus size={14} /> Agregar
+            {isVoiceLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : isRecording ? (
+              <Square size={14} className="fill-current animate-pulse" />
+            ) : (
+              <Mic size={16} />
+            )}
+          </button>
+
+          <button
+            onClick={() => { setInitialVoiceData(null); setIsAddModalOpen(true); }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl px-4 py-2.5 flex items-center justify-center gap-2 font-bold text-xs shadow-md shadow-indigo-600/10 transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus size={14} /> Agregar Movimiento
           </button>
           <button
-            onClick={() => setIsTransferModalOpen(true)}
-            className="w-9 h-9 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center"
+            onClick={() => { setInitialVoiceData(null); setIsTransferModalOpen(true); }}
+            title="Transferir"
+            className="w-10 h-10 bg-white dark:bg-gray-800 border border-border rounded-xl flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/70 hover:text-foreground"
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={16} />
           </button>
           <button 
             onClick={() => router.push('/ajustes')}
-            className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
+            title="Ajustes"
+            className="w-10 h-10 bg-white dark:bg-gray-800 border border-border rounded-xl flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/70 hover:text-foreground"
           >
-            <Settings size={14} className="opacity-50" />
+            <Settings size={16} className="opacity-80" />
           </button>
         </div>
       </div>
 
+      {/* Voice Recording Feedback Panel */}
+      {(isRecording || isVoiceLoading) && (
+        <div className="glass rounded-3xl p-6 border border-indigo-500/30 shadow-xl shadow-indigo-500/10 animate-in zoom-in-95 duration-200 flex flex-col items-center justify-center space-y-4 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 animate-pulse" />
+          
+          {isRecording ? (
+            <>
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full bg-rose-500 flex items-center justify-center text-white border border-rose-600 shadow-lg shadow-rose-500/30 animate-pulse relative z-10">
+                  <Mic size={24} />
+                </div>
+                <span className="absolute -inset-1 rounded-full bg-rose-500/20 animate-ping z-0"></span>
+              </div>
+              
+              <div className="space-y-1">
+                <p className="text-sm font-black tracking-tight text-foreground">Asistente de Voz Activo</p>
+                <p className="text-[10px] text-foreground/50 max-w-[280px] leading-relaxed mx-auto">
+                  Habla con naturalidad, ej: <span className="italic font-bold text-indigo-500 dark:text-indigo-400">"Almuerzo ejecutivo $12.50 pagado con Efectivo"</span> o <span className="italic font-bold text-indigo-500 dark:text-indigo-400">"Transferencia de Banco a Efectivo por $50"</span>
+                </p>
+              </div>
+
+              {/* Waveform Visualization */}
+              <div className="flex items-center gap-1.5 justify-center py-2 h-8">
+                <span className="wave-bar"></span>
+                <span className="wave-bar"></span>
+                <span className="wave-bar"></span>
+                <span className="wave-bar"></span>
+                <span className="wave-bar"></span>
+                <span className="wave-bar"></span>
+                <span className="wave-bar"></span>
+                <span className="wave-bar"></span>
+              </div>
+
+              <div className="flex items-center justify-between gap-6 bg-gray-50 dark:bg-gray-900/65 border border-border/40 px-4 py-2 rounded-2xl w-full max-w-[280px] mx-auto">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-500 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" /> Grabando
+                </span>
+                <span className="text-sm font-mono font-black text-foreground">
+                  {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+
+              <button 
+                onClick={stopRecording}
+                className="w-full max-w-[280px] bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-lg shadow-rose-500/20 border border-rose-600 mx-auto"
+              >
+                <Square size={12} className="fill-current" /> Terminar y Procesar
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center animate-spin">
+                  <Loader2 size={28} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-black tracking-tight text-foreground">Analizando tu voz con IA...</p>
+                <p className="text-[10px] text-foreground/45 uppercase tracking-wider font-extrabold">Groq Whisper & Llama 3</p>
+                <p className="text-[10px] text-indigo-500 dark:text-indigo-400 italic max-w-[250px] mx-auto mt-2 leading-relaxed font-semibold">
+                  Extrayendo montos, categorías, cuentas e intenciones de la transacción...
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Telegram Link Promo */}
       {!telegramLinked && (
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-5 text-white shadow-xl shadow-indigo-500/10 border border-white/10 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/5 rounded-full blur-xl group-hover:scale-150 transition-transform duration-700" />
+          <div className="flex items-start gap-4 relative z-10">
+            <div className="w-12 h-12 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/10">
               <MessageCircle size={24} />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-lg mb-1">Conecta Telegram</h3>
-              <p className="text-sm opacity-90 mb-4">
-                Registra gastos con tu voz.
+              <h3 className="font-extrabold text-lg mb-1 tracking-tight">Activar Asistente de Voz</h3>
+              <p className="text-xs text-white/80 mb-4 leading-relaxed max-w-md">
+                Registra gastos al instante enviando notas de voz o textos por Telegram. Nuestro parser de IA inteligente se encargará de clasificarlos.
               </p>
               <button 
                 onClick={() => router.push('/ajustes')}
-                className="bg-white text-indigo-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2"
+                className="bg-white text-indigo-700 hover:bg-gray-50 px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
               >
-                Configurar Bot
-                <ChevronRight size={16} />
+                Vincular Telegram
+                <ChevronRight size={14} />
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Chart */}
       <CategoryChart onEdit={setEditingTx} onDelete={handleDeleteTx} selectedMonth={selectedMonth} selectedYear={selectedYear} />
 
-      <div className="flex gap-3">
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-          <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Total</p>
-          <p className="text-xl font-bold tracking-tight">${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+      {/* Cards Statistics */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 dark:from-indigo-950/50 dark:to-indigo-900/30 rounded-3xl p-5 text-white border border-indigo-500/10 shadow-lg shadow-indigo-500/10 relative overflow-hidden glass-glow">
+          <div className="absolute top-0 right-0 -mt-6 -mr-6 w-20 h-20 bg-white/5 rounded-full blur-xl" />
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-200 dark:text-indigo-400 mb-1.5 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Balance Total
+          </p>
+          <p className="text-2xl font-black tracking-tight leading-none">${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
         </div>
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-          <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 mb-1">Gastos del mes</p>
-          <p className="text-xl font-bold tracking-tight text-red-500">${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold tracking-tight">Cuentas</h2>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-          {accounts.map((acc) => (
-            <div key={acc.id} className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 min-w-[140px]">
-              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-40 truncate">{acc.nombre}</p>
-              <p className={`text-base font-bold ${getAccountBalance(acc.id) >= 0 ? '' : 'text-red-500'}`}>
-                ${Math.abs(getAccountBalance(acc.id)).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-          ))}
+        
+        <div className="glass rounded-3xl p-5 shadow-sm border border-border relative overflow-hidden glass-glow">
+          <div className="absolute top-0 right-0 -mt-6 -mr-6 w-20 h-20 bg-rose-500/5 dark:bg-rose-500/2 rounded-full blur-xl pointer-events-none" />
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-foreground/45 mb-1.5 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Gastado este mes
+          </p>
+          <p className="text-2xl font-black tracking-tight leading-none text-rose-500 dark:text-rose-400">${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 
+      {/* Cuentas Section */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold tracking-tight">Recientes</h2>
-          <button onClick={() => router.push('/transacciones')} className="text-xs font-semibold opacity-40 hover:opacity-100">
-            Ver todo →
+        <div className="flex items-center justify-between mb-3.5">
+          <h2 className="text-sm font-extrabold uppercase tracking-wider text-foreground/60">Tus Cuentas</h2>
+          <button onClick={() => router.push('/cuentas')} className="text-xs font-bold text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400">
+            Ver detalles
+          </button>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none">
+          {accounts.map((acc) => {
+            const balance = getAccountBalance(acc.id);
+            return (
+              <div 
+                key={acc.id} 
+                className="flex-shrink-0 glass rounded-2xl p-4 border border-border min-w-[150px] shadow-sm hover:scale-[1.02] hover:shadow-md transition-all duration-300"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 truncate mb-1">{acc.nombre}</p>
+                <p className={`text-base font-black tracking-tight ${balance >= 0 ? 'text-foreground' : 'text-rose-500 dark:text-rose-400'}`}>
+                  ${Math.abs(balance).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div>
+        <div className="flex items-center justify-between mb-3.5">
+          <h2 className="text-sm font-extrabold uppercase tracking-wider text-foreground/60">Actividad Reciente</h2>
+          <button onClick={() => router.push('/transacciones')} className="text-xs font-bold text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400">
+            Ver todas →
           </button>
         </div>
         
-        <div className="space-y-0">
+        <div className="space-y-2.5">
           {recentTransactions.slice(0, 5).map((tx) => (
-            <div key={tx.id} className="bg-white dark:bg-gray-800 rounded-lg p-2.5 flex items-center justify-between border border-gray-100 dark:border-gray-700 group">
-              <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  tx.tipo === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
+            <div 
+              key={tx.id} 
+              className="glass rounded-2xl p-3.5 flex items-center justify-between border border-border shadow-sm hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-300 group"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  tx.tipo === 'ingreso' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-indigo-500/10 text-indigo-600'
                 }`}>
                   {tx.tipo === 'ingreso' ? (
-                    <TrendingUp size={14} className="text-green-600" />
+                    <TrendingUp size={16} />
                   ) : (
-                    <Wallet size={14} className="opacity-60" />
+                    <Wallet size={16} />
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-[10px] opacity-40">{tx.categoria}</p>
+                  <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
+                  <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider">{tx.categoria}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <p className={`text-sm font-bold ${tx.tipo === 'ingreso' ? 'text-green-600' : ''}`}>
+              
+              <div className="flex items-center gap-2">
+                <p className={`text-sm font-black ${tx.tipo === 'ingreso' ? 'text-emerald-500' : 'text-foreground'}`}>
                   {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                 </p>
-                <button 
-                  onClick={() => setEditingTx(tx)}
-                  className="p-1 opacity-60 hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded"
-                >
-                  <Settings size={10} className="text-blue-500" />
-                </button>
-                <button 
-                  onClick={() => handleDeleteTx(tx)}
-                  className="p-1 opacity-60 hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/30 rounded"
-                >
-                  <TrendingDown size={10} className="text-red-500" />
-                </button>
+                
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <button 
+                    onClick={() => setEditingTx(tx)}
+                    title="Editar"
+                    className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg text-indigo-500 transition-colors"
+                  >
+                    <Settings size={13} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteTx(tx)}
+                    title="Eliminar"
+                    className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-rose-500 transition-colors"
+                  >
+                    <TrendingDown size={13} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
+
+          {recentTransactions.length === 0 && (
+            <div className="py-8 text-center glass rounded-2xl border border-dashed border-border">
+              <p className="text-sm text-foreground/40 font-medium">Sin transacciones registradas este mes</p>
+            </div>
+          )}
         </div>
       </div>
 
-
-      <AddTransactionModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
-      <TransferModal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} />
+      <AddTransactionModal 
+        isOpen={isAddModalOpen} 
+        onClose={() => { setIsAddModalOpen(false); setInitialVoiceData(null); }} 
+        initialData={initialVoiceData}
+      />
+      <TransferModal 
+        isOpen={isTransferModalOpen} 
+        onClose={() => { setIsTransferModalOpen(false); setInitialVoiceData(null); }} 
+        initialData={initialVoiceData}
+      />
+      
       {editingTx && editingTx.id ? (
         <EditTransactionModal 
           key={editingTx.id}
           isOpen={true} 
           onClose={() => setEditingTx(null)} 
-          transaction={editingTx} 
+          transaction={editingTx}
         />
       ) : null}
     </div>
