@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase";
 import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import EditTransactionModal from "@/components/EditTransactionModal";
-import { getCategoryIconPath } from "@/lib/categoryIcons";
+import CategoryIcon from "@/components/CategoryIcon";
 
 export default function TransaccionesPage() {
   const { transactions, loading } = useRecentTransactions(100);
@@ -75,7 +75,6 @@ export default function TransaccionesPage() {
       {/* Transactions */}
       <div className="space-y-2.5">
         {filteredTransactions.map((tx) => {
-          const iconPath = getCategoryIconPath(tx.categoria, config?.categoryIcons);
           return (
             <div key={tx.id} className="glass rounded-2xl p-4 flex items-center justify-between border border-border shadow-sm hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-300 group glass-glow">
               <div className="flex items-center gap-3.5 min-w-0">
@@ -87,13 +86,11 @@ export default function TransaccionesPage() {
                   {tx.tipo === 'transferencia' ? (
                     <Repeat size={18} />
                   ) : (
-                    <img 
-                      src={iconPath} 
-                      alt={tx.categoria || "Categoría"} 
-                      className="w-7 h-7 object-contain rounded-lg" 
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
-                      }}
+                    <CategoryIcon 
+                      categoryName={tx.categoria}
+                      userIconsMap={config?.categoryIcons}
+                      className="w-7 h-7"
+                      size={18}
                     />
                   )}
                 </div>

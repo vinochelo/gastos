@@ -7,7 +7,7 @@ import { updateDoc, doc, increment } from "firebase/firestore";
 import { X, Tag } from "lucide-react";
 import { Transaction } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
-import { getCategoryIconPath } from "@/lib/categoryIcons";
+import CategoryIcon from "@/components/CategoryIcon";
 
 interface Props {
   isOpen: boolean;
@@ -211,13 +211,11 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
                   className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-900 p-4 rounded-xl text-sm text-left text-foreground cursor-pointer"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <img 
-                      src={getCategoryIconPath(category, config?.categoryIcons)} 
-                      alt="" 
-                      className="w-5 h-5 object-contain flex-shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
-                      }}
+                    <CategoryIcon 
+                      categoryName={category}
+                      userIconsMap={config?.categoryIcons}
+                      className="w-5 h-5"
+                      size={14}
                     />
                     <span className="truncate">{category || "Seleccionar..."}</span>
                   </div>
@@ -228,7 +226,6 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
                   <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-gray-800 border border-border shadow-xl rounded-2xl z-50 max-h-56 overflow-y-auto p-1.5 space-y-0.5 animate-in fade-in duration-100">
                     {categories.map((c) => {
                       const isSelected = c === category;
-                      const path = getCategoryIconPath(c, config?.categoryIcons);
                       return (
                         <button
                           key={c}
@@ -241,13 +238,11 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
                             isSelected ? 'bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-500 dark:text-indigo-400' : ''
                           }`}
                         >
-                          <img 
-                            src={path} 
-                            alt="" 
-                            className="w-4 h-4 object-contain flex-shrink-0"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
-                            }}
+                          <CategoryIcon 
+                            categoryName={c}
+                            userIconsMap={config?.categoryIcons}
+                            className="w-4 h-4"
+                            size={12}
                           />
                           <span className="truncate">{c}</span>
                         </button>

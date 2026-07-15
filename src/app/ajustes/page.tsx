@@ -9,7 +9,8 @@ import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
 import { getApiUrl } from "@/lib/api";
-import { AVAILABLE_ICONS, getCategoryIconPath } from "@/lib/categoryIcons";
+import { AVAILABLE_ICONS } from "@/lib/categoryIcons";
+import CategoryIcon from "@/components/CategoryIcon";
 
 const TELEGRAM_BOT_USERNAME = "controldegastosvvBot";
 
@@ -616,13 +617,11 @@ export default function AjustesPage() {
                   />
                 ) : (
                   <div className="flex items-center gap-2">
-                    <img 
-                      src={getCategoryIconPath(cat, categoryIcons)} 
-                      alt="" 
-                      className="w-5 h-5 object-contain rounded-md"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
-                      }}
+                    <CategoryIcon 
+                      categoryName={cat}
+                      userIconsMap={categoryIcons}
+                      className="w-5 h-5"
+                      size={13}
                     />
                     <span className="text-xs font-semibold text-foreground">{cat}</span>
                   </div>
@@ -721,13 +720,10 @@ export default function AjustesPage() {
                         : 'border-border/30 bg-gray-50/30 dark:bg-gray-900/10 hover:border-indigo-500/30'
                     }`}
                   >
-                    <img 
-                      src={icon.path} 
-                      alt={icon.name} 
-                      className="w-10 h-10 object-contain mb-1.5"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
-                      }}
+                    <CategoryIcon 
+                      iconKey={icon.key}
+                      className="w-10 h-10 mb-1.5"
+                      size={20}
                     />
                     <span className="text-[8px] font-bold text-foreground/65 text-center leading-tight truncate w-full">{icon.name}</span>
                   </button>

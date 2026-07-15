@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { getApiUrl } from "@/lib/api";
-import { getCategoryIconPath } from "@/lib/categoryIcons";
+import CategoryIcon from "@/components/CategoryIcon";
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -437,7 +437,6 @@ export default function Dashboard() {
         
         <div className="space-y-2.5">
           {recentTransactions.slice(0, 5).map((tx) => {
-            const iconPath = getCategoryIconPath(tx.categoria, config?.categoryIcons);
             return (
               <div 
                 key={tx.id} 
@@ -452,13 +451,11 @@ export default function Dashboard() {
                     {tx.tipo === 'transferencia' ? (
                       <ArrowRightLeft size={16} />
                     ) : (
-                      <img 
-                        src={iconPath} 
-                        alt={tx.categoria || "Categoría"} 
-                        className="w-6 h-6 object-contain rounded-lg" 
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
-                        }}
+                      <CategoryIcon 
+                        categoryName={tx.categoria}
+                        userIconsMap={config?.categoryIcons}
+                        className="w-6 h-6"
+                        size={16}
                       />
                     )}
                   </div>
