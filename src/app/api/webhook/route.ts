@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Telegraf } from "telegraf";
 import admin from "firebase-admin";
 import { adminDb } from "@/lib/firebase-admin";
-import { transcribeAudio, parseTransaction, getHelpMessage, editPendingWithAI } from "@/services/groq";
+import { transcribeAudio, parseTransaction, getHelpMessage, editPendingWithAI, generateFinancialAnalysis } from "@/services/groq";
 import { analyzeReceipt } from "@/services/ai";
 import axios from "axios";
 import fs from "fs";
@@ -53,7 +53,7 @@ async function handlePendingEdit(ctx: any, userId: string, pendingId: string, us
   });
 }
 
-async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise<unknown> }, userId: string, userInput: string, isAudio = false) {
+async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: any) => Promise<unknown> }, userId: string, userInput: string, isAudio = false) {
   try {
     const userDoc = await adminDb.collection("users").doc(userId).get();
     const userData = userDoc.data() || {};
@@ -157,7 +157,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
         }
       } else if (item.tipo === "consulta_saldo") {
         const cuentaBuscada = item.cuenta?.toLowerCase();
-        let mensaje = "💰 *SALDOS:*\n";
+        let mensaje = "💰 *SALDOS:* \n";
         let total = 0;
         
         if (cuentaBuscada === "todas" || !cuentaBuscada) {
@@ -166,7 +166,64 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
             mensaje += `• ${data.nombre}: $${(data.saldo || 0).toFixed(2)}\n`;
             total += data.saldo || 0;
           }
-          mensaje += `────────────────\n*TOTAL:* $${total.toFixed(2)}`;
+          mensaje += `────────────────\n*TOTAL:* $${total.toFixed(2)}\n\n`;
+
+          // Fetch current month's transaction totals for summary & AI analysis
+          try {
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            startOfMonth.setHours(0, 0, 0, 0);
+
+            const transSnap = await adminDb.collection("transactions")
+              .where("userId", "==", userId)
+              .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
+              .get();
+
+            let incomeTotal = 0;
+            let expenseTotal = 0;
+            const categoryExpenses: Record<string, number> = {};
+
+            for (const tDoc of transSnap.docs) {
+              const tData = tDoc.data();
+              const tMonto = tData.monto || 0;
+              if (tData.tipo === "ingreso") {
+                incomeTotal += tMonto;
+              } else if (tData.tipo === "gasto") {
+                expenseTotal += tMonto;
+                const cat = tData.categoria || "Otro";
+                categoryExpenses[cat] = (categoryExpenses[cat] || 0) + tMonto;
+              }
+            }
+
+            const mesActualNombre = new Date().toLocaleString('es-ES', { month: 'long' });
+            mensaje += `📊 *RESUMEN DE ${mesActualNombre.toUpperCase()}:*\n`;
+            mensaje += `• Ingresos: $${incomeTotal.toFixed(2)}\n`;
+            mensaje += `• Gastos: $${expenseTotal.toFixed(2)}\n`;
+            mensaje += `• Ahorro Neto: $${(incomeTotal - expenseTotal).toFixed(2)}\n\n`;
+
+            // Trigger AI financial analysis
+            mensaje += `🧠 *ANÁLISIS DE IA (GESTOR.AI):*\n`;
+            const balancesList = accountsSnap.docs.map(d => ({
+              nombre: d.data().nombre,
+              saldo: d.data().saldo || 0
+            }));
+            
+            const userDoc = await adminDb.collection("users").doc(userId).get();
+            const userName = userDoc.data()?.name || "Usuario";
+
+            const aiAnalysis = await generateFinancialAnalysis(
+              incomeTotal,
+              expenseTotal,
+              balancesList,
+              categoryExpenses,
+              userName
+            );
+            
+            mensaje += aiAnalysis;
+          } catch (aiErr) {
+            console.error("Error generating Telegram AI analysis:", aiErr);
+            mensaje += "_(No se pudo generar el análisis de IA en este momento)_";
+          }
         } else {
           const cuentaMatch = accountsSnap.docs.find(d => 
             d.data().nombre.toLowerCase().includes(cuentaBuscada) ||
@@ -179,7 +236,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string) => Promise
             mensaje = `❌ No encontré la cuenta "${item.cuenta}".`;
           }
         }
-        ctx.reply(mensaje);
+        ctx.reply(mensaje, { parse_mode: "Markdown" });
         return;
       } else if (item.tipo === "consulta_gasto_categoria") {
         const catBuscada = item.categoria;

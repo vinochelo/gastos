@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { useAccounts, useRecentTransactions, useUserConfig, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, AlertCircle } from "lucide-react";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, AlertCircle, Sparkles, X } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
@@ -39,6 +39,36 @@ export default function Dashboard() {
   const [initialVoiceData, setInitialVoiceData] = useState<any>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [timerInterval, setTimerInterval] = useState<any>(null);
+  
+  // AI analysis states
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+
+  const fetchAiAnalysis = async () => {
+    if (!user) return;
+    setIsAiLoading(true);
+    setAiAnalysis(null);
+    try {
+      const res = await fetch(getApiUrl("/api/analysis"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.uid })
+      });
+      const data = await res.json();
+      if (data.analysis) {
+        setAiAnalysis(data.analysis);
+        setIsAnalysisModalOpen(true);
+      } else {
+        alert("Error: " + (data.error || "No se pudo generar el análisis"));
+      }
+    } catch (err) {
+      console.error("Error fetching AI analysis:", err);
+      alert("Error de conexión al generar el análisis.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -407,6 +437,44 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* AI Financial Advisor Promo Card */}
+      <div className="glass rounded-3xl p-5 border border-indigo-500/10 dark:border-indigo-500/20 shadow-sm relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 dark:from-indigo-500/2 dark:to-purple-500/2 pointer-events-none" />
+        
+        <div className="flex items-start gap-4 relative z-10">
+          <div className="w-12 h-12 bg-gradient-to-tr from-indigo-500 to-purple-500 text-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-500/20">
+            <Sparkles size={22} className="animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-extrabold text-sm mb-1 tracking-tight text-foreground flex items-center gap-1.5">
+              Asesor Financiero IA
+              <span className="text-[8px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 font-extrabold uppercase px-1.5 py-0.5 rounded-full tracking-wider">Premium</span>
+            </h3>
+            <p className="text-[11px] text-foreground/60 leading-relaxed mb-3">
+              Obtén un diagnóstico financiero personalizado del mes, identifica fugas de dinero y recibe consejos de ahorro de Gestor.AI.
+            </p>
+            
+            <button 
+              onClick={fetchAiAnalysis}
+              disabled={isAiLoading}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:pointer-events-none shadow-md shadow-indigo-600/10"
+            >
+              {isAiLoading ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  Analizando finanzas...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={13} />
+                  Analizar mis finanzas
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Cuentas Section */}
       <div>
         <div className="flex items-center justify-between mb-3.5">
@@ -525,6 +593,44 @@ export default function Dashboard() {
           transaction={editingTx}
         />
       ) : null}
+
+      {/* AI Analysis Modal */}
+      {isAnalysisModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 max-w-lg w-full border border-border shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between mb-4 border-b border-border/25 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-500 rounded-xl flex items-center justify-center">
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-foreground leading-none">Diagnóstico de Gestor.AI</h3>
+                  <p className="text-[9px] uppercase tracking-wider text-foreground/45 mt-1 font-bold">Asesor Financiero Personal</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsAnalysisModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-foreground/60 hover:text-foreground hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-1 py-1 text-xs text-foreground/80 leading-relaxed font-sans space-y-3 whitespace-pre-line scrollbar-thin">
+              {aiAnalysis}
+            </div>
+            
+            <div className="mt-4 pt-3 border-t border-border/25 flex justify-end">
+              <button 
+                onClick={() => setIsAnalysisModalOpen(false)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 px-5 py-2.5 rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer shadow-md"
+              >
+                Cerrar diagnóstico
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

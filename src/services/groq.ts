@@ -189,3 +189,61 @@ DEVUELVE ÚNICAMENTE EL NUEVO JSON MODIFICADO. NO incluyas saludos ni explicacio
     return oldData;
   }
 }
+
+export async function generateFinancialAnalysis(
+  incomeTotal: number,
+  expenseTotal: number,
+  balances: { nombre: string; saldo: number }[],
+  categoryExpenses: Record<string, number>,
+  userName: string = "Usuario"
+): Promise<string> {
+  const dateStr = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  const balanceText = balances.map(b => `${b.nombre}: $${b.saldo.toFixed(2)}`).join("\n");
+  const categoryText = Object.entries(categoryExpenses)
+    .map(([cat, val]) => `- ${cat}: $${val.toFixed(2)}`)
+    .join("\n");
+
+  const prompt = `
+Eres un asesor financiero personal experto en finanzas personales para latinoamérica, llamado GESTOR.AI.
+Analiza la situación financiera de ${userName} para el mes de ${dateStr} con los siguientes datos reales:
+
+**DATOS FINANCIEROS:**
+- Ingresos Totales de este mes: $${incomeTotal.toFixed(2)}
+- Gastos Totales de este mes: $${expenseTotal.toFixed(2)}
+- Balances actuales en Cuentas:
+${balanceText}
+
+**DESGLOSE DE GASTOS POR CATEGORÍA:**
+${categoryText || "No hay gastos registrados este mes."}
+
+**INSTRUCCIONES PARA TU ANÁLISIS:**
+1. **Tono**: Empático, profesional, motivador y claro. Evita tecnicismos innecesarios.
+2. **Estructura**:
+   - **Resumen del Estado de Salud Financiera**: ¿Cómo se ve su mes? (¿Está ahorrando, al límite, o gastando de más?). Calcula su tasa de ahorro.
+   - **Categorías de Alerta**: Identifica la categoría donde más ha gastado y evalúa si es un gasto justificable o preocupante.
+   - **Recomendaciones Prácticas (3 Puntos)**: Consejos específicos y realistas para reducir gastos en sus categorías críticas o mejorar sus cuentas.
+   - **Frase Corta Motivadora**: Una línea corta al final que inspire control financiero.
+3. **Formato**: Usa formato Markdown limpio y profesional (negritas, listas con viñetas, bloques de cita). No incluyas intros innecesarios de chat como "Aquí tienes tu análisis". Ve directo al grano.
+4. **Restricción de longitud**: Mantén el análisis conciso y accionable (máximo 4 párrafos cortos y 3 viñetas).
+
+Genera el análisis financiero:
+`;
+
+  try {
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: "Eres un asesor financiero inteligente experto en finanzas personales. Devuelves respuestas directas en Markdown." },
+        { role: "user", content: prompt }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.6,
+      max_tokens: 800
+    });
+
+    return chatCompletion.choices[0]?.message?.content || "No se pudo generar el análisis en este momento.";
+  } catch (error) {
+    console.error("Error generating financial analysis:", error);
+    return "Error al generar el análisis financiero. Verifica la conexión con la IA.";
+  }
+}
+
