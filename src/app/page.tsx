@@ -222,9 +222,9 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between py-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Panel de Control</p>
+      <div className="flex flex-row items-center justify-between gap-3 py-2 border-b border-border/20">
+        <div className="flex flex-col min-w-0">
+          <p className="text-[9px] font-extrabold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Panel de Control</p>
           <select
             value={`${selectedMonth}-${selectedYear}`}
             onChange={(e) => {
@@ -232,7 +232,7 @@ export default function Dashboard() {
               setSelectedMonth(m);
               setSelectedYear(y);
             }}
-            className="text-2xl font-black bg-transparent border-none p-0 pr-6 m-0 focus:ring-0 text-foreground cursor-pointer capitalize font-sans tracking-tight focus:outline-none hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+            className="text-xl sm:text-2xl font-black bg-transparent border-none p-0 pr-8 m-0 focus:ring-0 text-foreground cursor-pointer capitalize font-sans tracking-tight focus:outline-none hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
           >
             {monthOptions.map(opt => (
               <option key={`${opt.month}-${opt.year}`} value={`${opt.month}-${opt.year}`} className="bg-white dark:bg-gray-800 text-foreground text-sm">
@@ -241,46 +241,53 @@ export default function Dashboard() {
             ))}
           </select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Mic Button */}
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isVoiceLoading}
             title="Ingreso por voz"
-            className={`w-10 h-10 rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm shrink-0 ${
               isRecording 
-                ? 'bg-rose-500 text-white shadow-rose-500/20' 
+                ? 'bg-rose-500 text-white shadow-rose-500/20 shadow-lg' 
                 : 'bg-indigo-50 text-indigo-600 border border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/30'
             }`}
           >
             {isVoiceLoading ? (
-              <Loader2 size={16} className="animate-spin" />
+              <Loader2 size={15} className="animate-spin" />
             ) : isRecording ? (
-              <Square size={14} className="fill-current animate-pulse" />
+              <Square size={13} className="fill-current animate-pulse" />
             ) : (
-              <Mic size={16} />
+              <Mic size={15} />
             )}
           </button>
 
+          {/* Add Transaction Button */}
           <button
             onClick={() => { setInitialVoiceData(null); setIsAddModalOpen(true); }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl px-4 py-2.5 flex items-center justify-center gap-2 font-bold text-xs shadow-md shadow-indigo-600/10 transition-all active:scale-95 cursor-pointer"
+            title="Agregar Movimiento"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl h-9 w-9 sm:h-10 sm:w-auto sm:px-4 flex items-center justify-center gap-1.5 font-bold text-xs shadow-md shadow-indigo-600/10 transition-all active:scale-95 cursor-pointer shrink-0"
           >
-            <Plus size={14} /> Agregar Movimiento
+            <Plus size={15} />
+            <span className="hidden sm:inline">Agregar Movimiento</span>
           </button>
+
+          {/* Transfer Button */}
           <button
             onClick={() => { setInitialVoiceData(null); setIsTransferModalOpen(true); }}
             title="Transferir"
-            className="w-10 h-10 bg-white dark:bg-gray-800 border border-border rounded-xl flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/70 hover:text-foreground"
+            className="w-9 h-9 sm:w-10 sm:h-10 bg-white dark:bg-gray-800 border border-border rounded-xl flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/70 hover:text-foreground shrink-0"
           >
-            <ArrowRightLeft size={16} />
+            <ArrowRightLeft size={15} />
           </button>
+
+          {/* Settings Button */}
           <button 
             onClick={() => router.push('/ajustes')}
             title="Ajustes"
-            className="w-10 h-10 bg-white dark:bg-gray-800 border border-border rounded-xl flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/70 hover:text-foreground"
+            className="w-9 h-9 sm:w-10 sm:h-10 bg-white dark:bg-gray-800 border border-border rounded-xl flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/70 hover:text-foreground shrink-0"
           >
-            <Settings size={16} className="opacity-80" />
+            <Settings size={15} className="opacity-80" />
           </button>
         </div>
       </div>

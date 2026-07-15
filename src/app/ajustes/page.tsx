@@ -48,43 +48,51 @@ export default function AjustesPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (snap.exists()) {
-          const data = snap.data() as UserConfig;
-          setTelegramId(data.telegramId || "");
-          setTelegramLinked(!!data.telegramId);
-          
-          if (data.categoryIcons) {
-            setCategoryIcons(data.categoryIcons);
-          }
-          
-          if (data.expenseCategories?.length) {
-            setExpenseCategories(data.expenseCategories);
+        try {
+          const snap = await getDoc(doc(db, "users", user.uid));
+          if (snap.exists()) {
+            const data = snap.data() as UserConfig;
+            setTelegramId(data.telegramId || "");
+            setTelegramLinked(!!data.telegramId);
+            
+            if (data.categoryIcons) {
+              setCategoryIcons(data.categoryIcons);
+            }
+            
+            if (data.expenseCategories?.length) {
+              setExpenseCategories(data.expenseCategories);
+            } else {
+              setExpenseCategories(DEFAULT_CATEGORIES);
+            }
+            
+            if (data.incomeCategories?.length) {
+              setIncomeCategories(data.incomeCategories);
+            } else {
+              setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
+            }
+
+            if (!data.expenseCategories?.length || !data.incomeCategories?.length) {
+              await updateDoc(doc(db, "users", user.uid), { 
+                expenseCategories: data.expenseCategories?.length ? data.expenseCategories : DEFAULT_CATEGORIES,
+                incomeCategories: data.incomeCategories?.length ? data.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]
+              });
+            }
           } else {
             setExpenseCategories(DEFAULT_CATEGORIES);
-          }
-          
-          if (data.incomeCategories?.length) {
-            setIncomeCategories(data.incomeCategories);
-          } else {
             setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
           }
-
-          if (!data.expenseCategories?.length || !data.incomeCategories?.length) {
-            await updateDoc(doc(db, "users", user.uid), { 
-              expenseCategories: data.expenseCategories?.length ? data.expenseCategories : DEFAULT_CATEGORIES,
-              incomeCategories: data.incomeCategories?.length ? data.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]
-            });
-          }
-        } else {
+        } catch (err) {
+          console.error("Error loading user config from Firestore:", err);
           setExpenseCategories(DEFAULT_CATEGORIES);
           setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
+        } finally {
+          setUserReady(true);
+          setAuthLoading(false);
         }
-        setUserReady(true);
       } else {
         router.push('/login');
+        setAuthLoading(false);
       }
-      setAuthLoading(false);
     });
 
     return () => unsubscribe();
