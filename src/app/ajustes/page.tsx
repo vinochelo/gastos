@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { getApiUrl } from "@/lib/api";
 import { AVAILABLE_ICONS } from "@/lib/categoryIcons";
 import CategoryIcon from "@/components/CategoryIcon";
+import { APP_VERSION } from "@/lib/version";
+
 
 const TELEGRAM_BOT_USERNAME = "controldegastosvvBot";
 
@@ -695,6 +697,10 @@ export default function AjustesPage() {
         >
           <LogOut size={14} /> Cerrar Sesión
         </button>
+        <div className="text-center pt-2 border-t border-border/10">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">Versión de la Aplicación</p>
+          <p className="text-xs font-black text-indigo-500/70 dark:text-indigo-400/60 mt-0.5 font-mono">v{APP_VERSION}</p>
+        </div>
       </div>
 
       {/* Icon Picker Modal */}

@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { DesktopNavigation, MobileNavigation } from "@/components/Navigation";
 import LayoutWrapper from "@/components/LayoutWrapper";
+import { APP_VERSION } from "@/lib/version";
+
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -39,7 +41,7 @@ export default function RootLayout({
             <DesktopNavigation />
             
             <div className="p-8 opacity-20 text-[10px] font-semibold uppercase tracking-widest">
-              v2.0
+              v{APP_VERSION}
             </div>
           </aside>
 
