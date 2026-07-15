@@ -9,7 +9,7 @@ export interface IconDefinition {
   gradient?: string;
 }
 
-// Available AI-generated 3D icons & custom SVG/Lucide icons
+// Available AI-generated 3D icons & custom mappings
 export const AVAILABLE_ICONS: IconDefinition[] = [
   // 3D PNG Icons
   { key: "casa", name: "Casa & Hogar", path: "/categories/cat_casa.png" },
@@ -30,16 +30,16 @@ export const AVAILABLE_ICONS: IconDefinition[] = [
   { key: "regalos", name: "Regalos & Donaciones", path: "/categories/cat_regalos.png" },
   { key: "otro", name: "Otro / General", path: "/categories/cat_otro.png" },
   
-  // Custom SVG/Lucide Icons (Dynamic colorful badges)
-  { key: "herramientas", name: "Herramientas", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "herramientas", gradient: "from-slate-400 to-zinc-600" },
-  { key: "diezmos", name: "Diezmos y Ofrendas", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "diezmos", gradient: "from-amber-400 to-yellow-500" },
-  { key: "user", name: "Usuario / Mathew", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "user", gradient: "from-violet-400 to-purple-500" },
-  { key: "golosinas", name: "Golosinas / Dulces", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "golosinas", gradient: "from-pink-400 to-rose-500" },
-  { key: "educacion", name: "Educación / Universidad", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "educacion", gradient: "from-sky-400 to-blue-500" },
-  { key: "viajes", name: "Viajes & Vuelo", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "viajes", gradient: "from-orange-400 to-red-500" },
-  { key: "bebidas", name: "Bebidas & Cafés", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "bebidas", gradient: "from-teal-400 to-cyan-500" },
-  { key: "negocio", name: "Negocio & Oficina", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "negocio", gradient: "from-indigo-400 to-violet-500" },
-  { key: "prestado", name: "Préstamos / Deudas", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "prestado", gradient: "from-emerald-400 to-teal-500" },
+  // Custom mappings to the 17 AI-generated 3D icons (matching color/theme for consistency)
+  { key: "herramientas", name: "Herramientas", path: "/categories/cat_servicios.png" },
+  { key: "diezmos", name: "Diezmos y Ofrendas", path: "/categories/cat_regalos.png" },
+  { key: "user", name: "Usuario / Mathew", path: "/categories/cat_otro.png" },
+  { key: "golosinas", name: "Golosinas / Dulces", path: "/categories/cat_comida.png" },
+  { key: "educacion", name: "Educación", path: "/categories/cat_otro.png" },
+  { key: "viajes", name: "Viajes & Vuelo", path: "/categories/cat_transporte.png" },
+  { key: "bebidas", name: "Bebidas & Cafés", path: "/categories/cat_comida.png" },
+  { key: "negocio", name: "Negocio & Oficina", path: "/categories/cat_inversiones.png" },
+  { key: "prestado", name: "Préstamos / Deudas", path: "/categories/cat_salario.png" },
 ];
 
 // Helper to remove accents and lowercase a string
