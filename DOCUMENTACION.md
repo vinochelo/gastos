@@ -117,9 +117,54 @@ Para permitir la entrada de voz dentro del celular sin pasar por Telegram, imple
 
 ---
 
-## 6. Gestión de Categorías
+## 6. Gestión de Categorías e Iconos Personalizados
 
-El componente en `src/app/ajustes/page.tsx` se rediseñó para ofrecer una experiencia fluida:
-*   **Pestañas de Selección (Tabs)**: Permite cambiar entre la lista de categorías de **Gastos** y **Ingresos**.
-*   **Creación y Borrado**: Permite añadir categorías separadas por comas e interactuar con Firestore.
+El componente en `src/app/ajustes/page.tsx` ofrece una experiencia fluida para la edición y visualización de categorías:
+*   **Pestañas de Selección (Tabs)**: Permite cambiar entre la lista de categorías de **Gastos** e **Ingresos**.
 *   **Edición en Sitio (Rename)**: Al hacer clic en el lápiz editor de cualquier categoría, la etiqueta se convierte en un campo de texto interactivo. Al presionar *Enter* o desenfocar el campo, el nombre se actualiza en el perfil de Firestore, impactando al instante los selectores del dashboard y modales.
+*   **Mapeador Dinámico de Iconos (`CategoryIcon.tsx` y `AccountIcon.tsx`)**: 
+    - Las categorías predeterminadas se muestran con imágenes 3D de alta definición de estilo *claymorphism* (optimizados a 96x96 píxeles, ~10KB cada uno, para garantizar una carga instantánea).
+    - Para las categorías personalizadas sin icono 3D, el sistema las mapea dinámicamente usando un badge vectorial con gradientes HSL coloridos e iconos de Lucide (ej: `isSvg: true` en `AVAILABLE_ICONS`).
+    - Al presionar el botón de icono en Ajustes, el usuario puede asignar un icono a cualquier categoría. Esto se almacena en Firestore dentro del documento del usuario (`users/${uid}`) bajo el mapa `categoryIcons` (ej: `{ "Golosinas": "golosinas" }`).
+
+---
+
+## 7. Arquitectura de Construcción y Conectividad Híbrida (Vercel & APK)
+
+Para que el frontend en el celular (APK/Capacitor) pueda interoperar con la base de datos y las APIs serverless de Vercel de manera transparente, implementamos:
+
+### A. Exclusión de Rutas de API en Compilación Local (`scripts/build.js`)
+*   Capacitor requiere compilar la aplicación como una SPA estática (`output: 'export'`). Sin embargo, Next.js no permite tener rutas API dinámicas (`route.ts`) dentro de un proyecto que se exporta de forma estática.
+*   Para solucionarlo, creamos el script de Node.js `scripts/build.js` que se ejecuta en el comando `npm run build`:
+    1.  Mueve temporalmente la carpeta `src/app/api` fuera de `src/app` (renombrándola a `src/api-temp`) si no está construyendo en Vercel.
+    2.  Ejecuta la compilación estática de Next.js (`next build`) para exportar la SPA limpia para la APK en la carpeta `/out`.
+    3.  Restaura de inmediato la carpeta `src/app/api` en su ubicación original en un bloque `finally` para evitar alterar el repositorio.
+*   En Vercel (donde `process.env.VERCEL === "1"`), el script simplemente ejecuta `next build` conservando las APIs para que se compilen como funciones serverless dinámicas.
+
+### B. Configuración CORS Condicional
+*   Capacitor ejecuta el código de la app móvil bajo un host local (`http://localhost` o `capacitor://localhost`). Para evitar que las peticiones a la API en Vercel sean bloqueadas por políticas de seguridad del navegador del móvil (CORS), configuramos en `next.config.ts`:
+    - Inyección dinámica de cabeceras de control de acceso `Access-Control-Allow-Origin: *` y métodos (`POST, GET, OPTIONS, etc.`) exclusivamente en las rutas `/api/*` cuando se despliega en producción en Vercel.
+
+### C. Permisos Nativos de Android y Robustez en Carga
+*   **Micrófono nativo**: Añadimos los permisos `<uses-permission android:name="android.permission.RECORD_AUDIO" />` y `MODIFY_AUDIO_SETTINGS` en `AndroidManifest.xml` para que el sistema operativo Android dispare el popup de solicitud de permisos al presionar el micrófono por primera vez.
+*   **Evitar Carga Infinita**: Aseguramos la recuperación de estados en Ajustes envolviendo los métodos asíncronos de Firestore en `try/catch/finally`, garantizando que el spinner de carga se oculte siempre y se usen categorías fallback en caso de fallos de red.
+
+---
+
+## 8. Sistema de Versionamiento de la App
+*   Centralizamos la versión de la aplicación en `src/lib/version.ts` como `2.1.0`.
+*   Esta versión se inyecta dinámicamente en el sidebar de navegación lateral en computadoras, y en el pie de página de la pantalla de **Ajustes** en la APK para que el usuario pueda auditar el estado de su versión instalada.
+*   El archivo de configuración de Android (`android/app/build.gradle`) incrementa su `versionCode` a `2` y su `versionName` a `"2.1.0"` para que el sistema operativo móvil reconozca la actualización y no genere conflictos al instalar la APK.
+
+---
+
+## 9. Asesor Financiero IA (Diagnóstico e Inteligencia)
+
+Implementamos un motor de análisis financiero inteligente utilizando el modelo `llama-3.3-70b-versatile` de Groq en la ruta `/api/analysis/route.ts`. 
+
+### Flujo de Análisis
+1.  **Datos Recopilados**: Carga el saldo de las cuentas, calcula el total de ingresos y gastos del mes en curso y extrae el desglose de gastos agrupado por categorías.
+2.  **Solicitud a la IA**: El servidor ejecuta un prompt diseñado con un rol de Asesor Financiero experto (GESTOR.AI) enfocado en finanzas latinoamericanas. La IA evalúa la salud del presupuesto, calcula el porcentaje de ahorro real, detecta la categoría de mayor consumo y devuelve **3 consejos personalizados accionables**.
+3.  **Visualización**:
+    *   **En la APK**: Añadimos la sección "Asesor Financiero IA" en el Dashboard principal que abre un modal con el diagnóstico formateado en Markdown.
+    *   **En Telegram**: Al mandar el comando "mi saldo" o "saldos", el bot retorna una respuesta enriquecida (vía `{ parse_mode: "Markdown" }`) mostrando los balances, los totales del mes y el diagnóstico financiero de la IA inmediatamente debajo.
