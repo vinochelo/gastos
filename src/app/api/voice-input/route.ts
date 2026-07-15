@@ -5,8 +5,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-export const dynamic = "force-static";
-
+export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   let tempFilePath = "";
   try {

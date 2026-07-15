@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebase-admin";
-
-export const dynamic = "force-static";
-
+export const dynamic = "force-dynamic";
 function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
