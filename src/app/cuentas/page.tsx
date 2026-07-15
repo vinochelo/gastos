@@ -2,6 +2,7 @@
 
 import { useAccounts } from "@/hooks/useFirestore";
 import { Plus, Wallet, CreditCard, Banknote, MoreVertical, LucideIcon } from "lucide-react";
+import { getAccountIconPath } from "@/lib/categoryIcons";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection } from "firebase/firestore";
 
@@ -59,15 +60,22 @@ export default function CuentasPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {accounts.map((acc) => {
           const Config = ACCOUNT_TYPES[acc.nombre] || ACCOUNT_TYPES["Default"];
-          const Icon = Config.icon;
+          const iconPath = getAccountIconPath(acc.nombre);
           
           return (
             <div key={acc.id} className="glass p-5 rounded-3xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden glass-glow">
               <div className={`absolute top-0 right-0 -mt-6 -mr-6 w-20 h-20 ${Config.glow} rounded-full blur-xl pointer-events-none`} />
               
               <div className="flex items-center gap-4 relative z-10">
-                <div className={`p-3.5 rounded-2xl ${Config.color} flex items-center justify-center`}>
-                   <Icon size={24} />
+                <div className="p-1 rounded-2xl flex items-center justify-center bg-white dark:bg-gray-800 shadow-sm border border-border/40">
+                   <img 
+                     src={iconPath} 
+                     alt={acc.nombre} 
+                     className="w-10 h-10 object-contain rounded-xl"
+                     onError={(e) => {
+                       (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                     }}
+                   />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-lg text-foreground tracking-tight leading-tight">{acc.nombre}</h3>

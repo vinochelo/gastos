@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { getApiUrl } from "@/lib/api";
+import { getCategoryIconPath } from "@/lib/categoryIcons";
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -435,26 +436,37 @@ export default function Dashboard() {
         </div>
         
         <div className="space-y-2.5">
-          {recentTransactions.slice(0, 5).map((tx) => (
-            <div 
-              key={tx.id} 
-              className="glass rounded-2xl p-3.5 flex items-center justify-between border border-border shadow-sm hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-300 group"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  tx.tipo === 'ingreso' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-indigo-500/10 text-indigo-600'
-                }`}>
-                  {tx.tipo === 'ingreso' ? (
-                    <TrendingUp size={16} />
-                  ) : (
-                    <Wallet size={16} />
-                  )}
+          {recentTransactions.slice(0, 5).map((tx) => {
+            const iconPath = getCategoryIconPath(tx.categoria, config?.categoryIcons);
+            return (
+              <div 
+                key={tx.id} 
+                className="glass rounded-2xl p-3.5 flex items-center justify-between border border-border shadow-sm hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-300 group"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    tx.tipo === 'ingreso' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 
+                    tx.tipo === 'transferencia' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' :
+                    'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  }`}>
+                    {tx.tipo === 'transferencia' ? (
+                      <ArrowRightLeft size={16} />
+                    ) : (
+                      <img 
+                        src={iconPath} 
+                        alt={tx.categoria || "Categoría"} 
+                        className="w-6 h-6 object-contain rounded-lg" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
+                    <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider">{tx.categoria}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider">{tx.categoria}</p>
-                </div>
-              </div>
               
               <div className="flex items-center gap-2">
                 <p className={`text-sm font-black ${tx.tipo === 'ingreso' ? 'text-emerald-500' : 'text-foreground'}`}>
@@ -479,7 +491,8 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
 
           {recentTransactions.length === 0 && (
             <div className="py-8 text-center glass rounded-2xl border border-dashed border-border">

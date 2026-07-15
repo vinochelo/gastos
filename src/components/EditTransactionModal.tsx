@@ -7,6 +7,7 @@ import { updateDoc, doc, increment } from "firebase/firestore";
 import { X, Tag } from "lucide-react";
 import { Transaction } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
+import { getCategoryIconPath } from "@/lib/categoryIcons";
 
 interface Props {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
   const [fromId, setFromId] = useState(transaction.fromId || "");
   const [toId, setToId] = useState(transaction.toId || "");
   const [loading, setLoading] = useState(false);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 
   const isTransfer = transaction.tipo === "transferencia";
 
@@ -38,6 +40,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
     setAccountId(transaction.accountId || "");
     setFromId(transaction.fromId || "");
     setToId(transaction.toId || "");
+    setIsCategoryDropdownOpen(false);
   }, [transaction]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -200,15 +203,58 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
+              <div className="space-y-1 relative">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Categoría</label>
-                <select 
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-gray-900 border-none p-4 rounded-xl text-sm"
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                  className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-900 p-4 rounded-xl text-sm text-left text-foreground cursor-pointer"
                 >
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <img 
+                      src={getCategoryIconPath(category, config?.categoryIcons)} 
+                      alt="" 
+                      className="w-5 h-5 object-contain flex-shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                      }}
+                    />
+                    <span className="truncate">{category || "Seleccionar..."}</span>
+                  </div>
+                  <span className="text-[9px] text-foreground/45">▼</span>
+                </button>
+                
+                {isCategoryDropdownOpen && (
+                  <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-gray-800 border border-border shadow-xl rounded-2xl z-50 max-h-56 overflow-y-auto p-1.5 space-y-0.5 animate-in fade-in duration-100">
+                    {categories.map((c) => {
+                      const isSelected = c === category;
+                      const path = getCategoryIconPath(c, config?.categoryIcons);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setCategory(c);
+                            setIsCategoryDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold text-foreground hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors cursor-pointer ${
+                            isSelected ? 'bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-500 dark:text-indigo-400' : ''
+                          }`}
+                        >
+                          <img 
+                            src={path} 
+                            alt="" 
+                            className="w-4 h-4 object-contain flex-shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                            }}
+                          />
+                          <span className="truncate">{c}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Cuenta</label>

@@ -8,6 +8,7 @@ import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle, Calendar, C
 import { Timestamp } from "firebase/firestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { getApiUrl } from "@/lib/api";
+import { getCategoryIconPath } from "@/lib/categoryIcons";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [toastLocal, setToastLocal] = useState<string | null>(null);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 
   const showToastLocal = (msg: string) => {
     setToastLocal(msg);
@@ -174,6 +176,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       }
       setDate(new Date().toISOString().split('T')[0]);
       setError(null);
+      setIsCategoryDropdownOpen(false);
     }
   }, [isOpen, defaultType, initialData, accounts]);
 
@@ -244,13 +247,13 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         <div className="flex justify-between items-center mb-5">
           <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl gap-1">
             <button 
-              onClick={() => { setType("gasto"); setError(null); }}
+              onClick={() => { setType("gasto"); setError(null); setIsCategoryDropdownOpen(false); }}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${type === 'gasto' ? 'bg-red-500 text-white' : 'text-gray-500'}`}
             >
               <TrendingDown size={12} /> Gasto
             </button>
             <button 
-              onClick={() => { setType("ingreso"); setError(null); }}
+              onClick={() => { setType("ingreso"); setError(null); setIsCategoryDropdownOpen(false); }}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${type === 'ingreso' ? 'bg-green-500 text-white' : 'text-gray-500'}`}
             >
               <TrendingUp size={12} /> Ingreso
@@ -376,15 +379,58 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+            <div className="space-y-1 relative">
               <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Categoría</label>
-              <select 
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+              <button
+                type="button"
+                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 text-left text-foreground cursor-pointer animate-in fade-in duration-200"
               >
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+                <div className="flex items-center gap-2 min-w-0">
+                  <img 
+                    src={getCategoryIconPath(category, config?.categoryIcons)} 
+                    alt="" 
+                    className="w-5 h-5 object-contain flex-shrink-0"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                    }}
+                  />
+                  <span className="truncate">{category || "Seleccionar..."}</span>
+                </div>
+                <span className="text-[9px] text-foreground/45">▼</span>
+              </button>
+              
+              {isCategoryDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-gray-800 border border-border shadow-xl rounded-2xl z-50 max-h-56 overflow-y-auto p-1.5 space-y-0.5 animate-in fade-in duration-100">
+                  {categories.map((c) => {
+                    const isSelected = c === category;
+                    const path = getCategoryIconPath(c, config?.categoryIcons);
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          setCategory(c);
+                          setIsCategoryDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold text-foreground hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors cursor-pointer ${
+                          isSelected ? 'bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-500 dark:text-indigo-400' : ''
+                        }`}
+                      >
+                        <img 
+                          src={path} 
+                          alt="" 
+                          className="w-4 h-4 object-contain flex-shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                          }}
+                        />
+                        <span className="truncate">{c}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Cuenta</label>

@@ -1,42 +1,17 @@
 'use client';
 
 import { useState } from "react";
-import { useRecentTransactions, Transaction } from "@/hooks/useFirestore";
-import { Search, Trash2, Plus, Minus, Repeat, Settings, ShoppingBag, Utensils, Car, Home, Heart, Film, Gift, Smartphone, Plane, Coffee, Building } from "lucide-react";
+import { useRecentTransactions, Transaction, useUserConfig } from "@/hooks/useFirestore";
+import { Search, Trash2, Plus, Minus, Repeat, Settings } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import EditTransactionModal from "@/components/EditTransactionModal";
-
-const CATEGORY_ICONS: Record<string, typeof ShoppingBag> = {
-  'Comida': Utensils,
-  'Transporte': Car,
-  'Casa': Home,
-  'Salud': Heart,
-  'Cine': Film,
-  'Regalos': Gift,
-  'Tecnología': Smartphone,
-  'Viajes': Plane,
-  'Restaurantes': Coffee,
-  'Compras Ecommerce': ShoppingBag,
-  'Deportes': Plus,
-  'Entretenimiento': Film,
-  'Streaming': Smartphone,
-  'Taxi/Uber': Car,
-  'default': ShoppingBag,
-};
-
-function getCategoryIcon(categoria?: string) {
-  if (!categoria) return ShoppingBag;
-  const catLower = categoria.toLowerCase();
-  for (const [key, Icon] of Object.entries(CATEGORY_ICONS)) {
-    if (catLower.includes(key.toLowerCase())) return Icon;
-  }
-  return ShoppingBag;
-}
+import { getCategoryIconPath } from "@/lib/categoryIcons";
 
 export default function TransaccionesPage() {
   const { transactions, loading } = useRecentTransactions(100);
+  const { config } = useUserConfig();
   const [searchQuery, setSearchQuery] = useState("");
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const router = useRouter();
@@ -100,7 +75,7 @@ export default function TransaccionesPage() {
       {/* Transactions */}
       <div className="space-y-2.5">
         {filteredTransactions.map((tx) => {
-          const Icon = getCategoryIcon(tx.categoria);
+          const iconPath = getCategoryIconPath(tx.categoria, config?.categoryIcons);
           return (
             <div key={tx.id} className="glass rounded-2xl p-4 flex items-center justify-between border border-border shadow-sm hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-300 group glass-glow">
               <div className="flex items-center gap-3.5 min-w-0">
@@ -109,12 +84,17 @@ export default function TransaccionesPage() {
                   tx.tipo === 'transferencia' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' :
                   'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                 }`}>
-                  {tx.tipo === 'ingreso' ? (
-                    <Plus size={20} />
-                  ) : tx.tipo === 'transferencia' ? (
+                  {tx.tipo === 'transferencia' ? (
                     <Repeat size={18} />
                   ) : (
-                    <Icon size={18} />
+                    <img 
+                      src={iconPath} 
+                      alt={tx.categoria || "Categoría"} 
+                      className="w-7 h-7 object-contain rounded-lg" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                      }}
+                    />
                   )}
                 </div>
                 <div className="min-w-0">

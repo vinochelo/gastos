@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2, Edit2, KeyRound } from "lucide-react";
+import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2, Edit2, KeyRound, Sparkles } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
 import { getApiUrl } from "@/lib/api";
+import { AVAILABLE_ICONS, getCategoryIconPath } from "@/lib/categoryIcons";
 
 const TELEGRAM_BOT_USERNAME = "controldegastosvvBot";
 
@@ -33,6 +34,8 @@ export default function AjustesPage() {
   // Category management enhancements
   const [activeCategoryTab, setActiveCategoryTab] = useState<'gastos' | 'ingresos'>('gastos');
   const [editingCategory, setEditingCategory] = useState<{ originalName: string, newName: string } | null>(null);
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, string>>({});
+  const [iconPickerCategory, setIconPickerCategory] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -49,6 +52,10 @@ export default function AjustesPage() {
           const data = snap.data() as UserConfig;
           setTelegramId(data.telegramId || "");
           setTelegramLinked(!!data.telegramId);
+          
+          if (data.categoryIcons) {
+            setCategoryIcons(data.categoryIcons);
+          }
           
           if (data.expenseCategories?.length) {
             setExpenseCategories(data.expenseCategories);
@@ -220,17 +227,28 @@ export default function AjustesPage() {
 
   const handleRemoveCategory = async (cat: string) => {
     if (!auth.currentUser) return;
+    
+    const updatedIcons = { ...categoryIcons };
+    let hasIconUpdate = false;
+    if (updatedIcons[cat]) {
+      delete updatedIcons[cat];
+      setCategoryIcons(updatedIcons);
+      hasIconUpdate = true;
+    }
+
     if (activeCategoryTab === 'gastos') {
       const updated = expenseCategories.filter(c => c !== cat);
       setExpenseCategories(updated);
       await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        expenseCategories: updated
+        expenseCategories: updated,
+        ...(hasIconUpdate ? { categoryIcons: updatedIcons } : {})
       });
     } else {
       const updated = incomeCategories.filter(c => c !== cat);
       setIncomeCategories(updated);
       await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        incomeCategories: updated
+        incomeCategories: updated,
+        ...(hasIconUpdate ? { categoryIcons: updatedIcons } : {})
       });
     }
     showToast("Categoría eliminada");
@@ -242,6 +260,16 @@ export default function AjustesPage() {
       return;
     }
     const cleanName = newName.trim();
+    
+    const updatedIcons = { ...categoryIcons };
+    let hasIconUpdate = false;
+    if (updatedIcons[originalName]) {
+      updatedIcons[cleanName] = updatedIcons[originalName];
+      delete updatedIcons[originalName];
+      setCategoryIcons(updatedIcons);
+      hasIconUpdate = true;
+    }
+
     if (activeCategoryTab === 'gastos') {
       if (expenseCategories.includes(cleanName) && cleanName.toLowerCase() !== originalName.toLowerCase()) {
         showToast("Esa categoría ya existe");
@@ -250,7 +278,8 @@ export default function AjustesPage() {
       const updated = expenseCategories.map(c => c === originalName ? cleanName : c);
       setExpenseCategories(updated);
       await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        expenseCategories: updated
+        expenseCategories: updated,
+        ...(hasIconUpdate ? { categoryIcons: updatedIcons } : {})
       });
     } else {
       if (incomeCategories.includes(cleanName) && cleanName.toLowerCase() !== originalName.toLowerCase()) {
@@ -260,11 +289,23 @@ export default function AjustesPage() {
       const updated = incomeCategories.map(c => c === originalName ? cleanName : c);
       setIncomeCategories(updated);
       await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        incomeCategories: updated
+        incomeCategories: updated,
+        ...(hasIconUpdate ? { categoryIcons: updatedIcons } : {})
       });
     }
     setEditingCategory(null);
     showToast("Categoría renombrada");
+  };
+
+  const saveCategoryIcon = async (categoryName: string, iconKey: string) => {
+    if (!auth.currentUser) return;
+    const updatedIcons = { ...categoryIcons, [categoryName]: iconKey };
+    setCategoryIcons(updatedIcons);
+    await updateDoc(doc(db, "users", auth.currentUser.uid), {
+      categoryIcons: updatedIcons
+    });
+    setIconPickerCategory(null);
+    showToast("Icono actualizado");
   };
 
   const handleResetCategories = async () => {
@@ -574,25 +615,44 @@ export default function AjustesPage() {
                     className="bg-white dark:bg-gray-900 border border-indigo-500/50 px-2 py-0.5 rounded text-xs text-foreground font-semibold focus:outline-none w-28"
                   />
                 ) : (
-                  <span className="text-xs font-semibold text-foreground">{cat}</span>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={getCategoryIconPath(cat, categoryIcons)} 
+                      alt="" 
+                      className="w-5 h-5 object-contain rounded-md"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                      }}
+                    />
+                    <span className="text-xs font-semibold text-foreground">{cat}</span>
+                  </div>
                 )}
 
                 <div className="flex items-center gap-1.5">
                   {!isEditingThis && (
-                    <button
-                      onClick={() => setEditingCategory({ originalName: cat, newName: cat })}
-                      title="Renombrar"
-                      className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity text-foreground"
-                    >
-                      <Edit2 size={12} />
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setIconPickerCategory(cat)}
+                        title="Cambiar Icono"
+                        className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity text-indigo-500 cursor-pointer"
+                      >
+                        <Sparkles size={11} />
+                      </button>
+                      <button
+                        onClick={() => setEditingCategory({ originalName: cat, newName: cat })}
+                        title="Renombrar"
+                        className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity text-foreground cursor-pointer"
+                      >
+                        <Edit2 size={11} />
+                      </button>
+                    </>
                   )}
                   <button 
                     onClick={() => handleRemoveCategory(cat)} 
                     title="Eliminar"
-                    className="opacity-40 hover:opacity-100 hover:text-rose-500 transition-all text-foreground"
+                    className="opacity-40 hover:opacity-100 hover:text-rose-500 transition-all text-foreground cursor-pointer"
                   >
-                    <X size={12} />
+                    <X size={11} />
                   </button>
                 </div>
               </div>
@@ -629,6 +689,54 @@ export default function AjustesPage() {
           <LogOut size={14} /> Cerrar Sesión
         </button>
       </div>
+
+      {/* Icon Picker Modal */}
+      {iconPickerCategory && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 max-w-md w-full border border-border shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-extrabold text-base text-foreground">Seleccionar Icono</h3>
+                <p className="text-[10px] text-foreground/50 mt-0.5">Categoría: <span className="font-bold text-indigo-500">{iconPickerCategory}</span></p>
+              </div>
+              <button 
+                onClick={() => setIconPickerCategory(null)}
+                className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-foreground/60 hover:text-foreground hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-3 max-h-[320px] overflow-y-auto p-1.5 scrollbar-thin">
+              {AVAILABLE_ICONS.map((icon) => {
+                const isSelected = categoryIcons[iconPickerCategory] === icon.key;
+                return (
+                  <button
+                    key={icon.key}
+                    type="button"
+                    onClick={() => saveCategoryIcon(iconPickerCategory, icon.key)}
+                    className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all hover:scale-[1.03] cursor-pointer ${
+                      isSelected 
+                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-sm' 
+                        : 'border-border/30 bg-gray-50/30 dark:bg-gray-900/10 hover:border-indigo-500/30'
+                    }`}
+                  >
+                    <img 
+                      src={icon.path} 
+                      alt={icon.name} 
+                      className="w-10 h-10 object-contain mb-1.5"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/categories/cat_otro.png";
+                      }}
+                    />
+                    <span className="text-[8px] font-bold text-foreground/65 text-center leading-tight truncate w-full">{icon.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

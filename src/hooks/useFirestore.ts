@@ -125,6 +125,7 @@ export interface UserConfig {
   expenseCategories?: string[];
   incomeCategories?: string[];
   categories?: string[];
+  categoryIcons?: Record<string, string>;
 }
 
 export function useUserConfig() {
