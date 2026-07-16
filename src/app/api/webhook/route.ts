@@ -156,8 +156,9 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         return ctx.reply("🌐 *Accede a la aplicación web:*\n\nhttps://gastos-delta-pearl.vercel.app/");
       }
       
-      if (!item.monto && item.tipo !== "consulta_saldo") continue;
-      const monto = Math.abs(item.monto);
+      const requiresMonto = item.tipo === "gasto" || item.tipo === "ingreso" || item.tipo === "transferencia";
+      if (requiresMonto && !item.monto) continue;
+      const monto = item.monto ? Math.abs(item.monto) : 0;
       
       let timestamp = admin.firestore.FieldValue.serverTimestamp();
       if (item.fecha) {
@@ -268,36 +269,41 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
             mensaje += `• Gastos: $${expenseTotal.toFixed(2)}\n`;
             mensaje += `• Ahorro Neto: $${(incomeTotal - expenseTotal).toFixed(2)}\n\n`;
 
-            // Trigger AI financial analysis
-            mensaje += `🧠 *ANÁLISIS DE IA (GESTOR.AI):*\n`;
-            const balancesList = accountsSnap.docs.map(d => ({
-              nombre: d.data().nombre,
-              saldo: d.data().saldo || 0
-            }));
+            const shouldRunAi = /anal|ia|gestor|consejo|recom|suger/i.test(userInput || "");
             
-            const userDoc = await adminDb.collection("users").doc(userId).get();
-            const userName = userDoc.data()?.name || "Usuario";
+            if (shouldRunAi) {
+              mensaje += `🧠 *ANÁLISIS DE IA (GESTOR.AI):*\n`;
+              const balancesList = accountsSnap.docs.map(d => ({
+                nombre: d.data().nombre,
+                saldo: d.data().saldo || 0
+              }));
+              
+              const userDoc = await adminDb.collection("users").doc(userId).get();
+              const userName = userDoc.data()?.name || "Usuario";
 
-            const recentTransactionsList = transSnap.docs.map(doc => {
-              const data = doc.data();
-              return {
-                tipo: data.tipo,
-                monto: data.monto || 0,
-                categoria: data.categoria || "Otro",
-                descripcion: data.descripcion || ""
-              };
-            });
+              const recentTransactionsList = transSnap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                  tipo: data.tipo,
+                  monto: data.monto || 0,
+                  categoria: data.categoria || "Otro",
+                  descripcion: data.descripcion || ""
+                };
+              });
 
-            const aiAnalysis = await generateFinancialAnalysis(
-              incomeTotal,
-              expenseTotal,
-              balancesList,
-              categoryExpenses,
-              userName,
-              recentTransactionsList
-            );
-            
-            mensaje += aiAnalysis;
+              const aiAnalysis = await generateFinancialAnalysis(
+                incomeTotal,
+                expenseTotal,
+                balancesList,
+                categoryExpenses,
+                userName,
+                recentTransactionsList
+              );
+              
+              mensaje += aiAnalysis;
+            } else {
+              mensaje += `💡 *Tip:* Si quieres consejos de GESTOR.AI, escribe *"analizar"* o *"consejos"*.`;
+            }
           } catch (aiErr) {
             console.error("Error generating Telegram AI analysis:", aiErr);
             mensaje += "_(No se pudo generar el análisis de IA en este momento)_";
