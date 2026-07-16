@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
+import OfflineIndicator from './OfflineIndicator';
 
 const Scene3D = dynamic(() => import('./Scene3D'), { 
   ssr: false,
@@ -14,6 +15,7 @@ export default function LayoutWrapper({ children }: { children: ReactNode }) {
   return (
     <>
       <Scene3D />
+      <OfflineIndicator />
       <AnimatePresence mode="wait">
         <motion.div
           key={usePathname()}
