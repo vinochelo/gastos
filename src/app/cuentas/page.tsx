@@ -1,7 +1,7 @@
 'use client';
 
 import { useAccounts } from "@/hooks/useFirestore";
-import { Plus, Wallet, CreditCard, Banknote, MoreVertical, LucideIcon } from "lucide-react";
+import { Plus, Wallet, CreditCard, Banknote, MoreVertical, LucideIcon, PiggyBank } from "lucide-react";
 import AccountIcon from "@/components/AccountIcon";
 import { db, auth } from "@/lib/firebase";
 import { addDoc, collection } from "firebase/firestore";
@@ -19,6 +19,7 @@ const ACCOUNT_TYPES: Record<string, AccountConfig> = {
   "Peigo": { icon: Wallet, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400", glow: "bg-purple-500/5 dark:bg-purple-500/2" },
   "American Express": { icon: CreditCard, color: "bg-sky-500/10 text-sky-600 dark:text-sky-400", glow: "bg-sky-500/5 dark:bg-sky-500/2" },
   "Efectivo": { icon: Banknote, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400", glow: "bg-slate-500/5 dark:bg-slate-500/2" },
+  "Ahorro": { icon: PiggyBank, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", glow: "bg-emerald-500/5 dark:bg-emerald-500/2" },
   "Default": { icon: Wallet, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400", glow: "bg-indigo-500/5 dark:bg-indigo-500/2" }
 };
 
@@ -27,7 +28,7 @@ export default function CuentasPage() {
 
   const handleInitAccounts = async () => {
     if (!auth.currentUser) return;
-    const names = ["Produbanco", "Guayaquil", "DeUna", "Peigo", "American Express", "Efectivo"];
+    const names = ["Produbanco", "Guayaquil", "DeUna", "Peigo", "American Express", "Efectivo", "Ahorro"];
     for (const name of names) {
       if (!accounts.find(a => a.nombre === name)) {
         await addDoc(collection(db, "accounts"), {

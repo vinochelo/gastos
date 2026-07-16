@@ -228,9 +228,11 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
           for (const doc of accountsSnap.docs) {
             const data = doc.data();
             mensaje += `• ${data.nombre}: $${(data.saldo || 0).toFixed(2)}\n`;
-            total += data.saldo || 0;
+            if (!data.nombre.toLowerCase().includes("ahorro")) {
+              total += data.saldo || 0;
+            }
           }
-          mensaje += `────────────────\n*TOTAL:* $${total.toFixed(2)}\n\n`;
+          mensaje += `────────────────\n*TOTAL DISPONIBLE:* $${total.toFixed(2)}\n\n`;
 
           // Fetch current month's transaction totals for summary & AI analysis
           try {

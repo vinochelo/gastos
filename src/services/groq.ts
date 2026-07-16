@@ -225,8 +225,12 @@ ${categoryText || "No hay gastos registrados este mes."}
    - **Categorías de Alerta**: Identifica la categoría donde más ha gastado y evalúa si es un gasto justificable o preocupante.
    - **Recomendaciones Prácticas (3 Puntos)**: Consejos específicos y realistas para reducir gastos en sus categorías críticas o mejorar sus cuentas.
    - **Frase Corta Motivadora**: Una línea corta al final que inspire control financiero.
-3. **Formato**: Usa formato Markdown limpio y profesional (negritas, listas con viñetas, bloques de cita). No incluyas intros innecesarios de chat como "Aquí tienes tu análisis". Ve directo al grano.
-4. **Restricción de longitud**: Mantén el análisis conciso y accionable (máximo 4 párrafos cortos y 3 viñetas).
+3. **Criterio de Gastos Fijos vs. Variables (Crítico)**:
+   - Categorías como "Educación", "Universidad", "Estudios", "Diezmos" o "Arriendo/Casa" son inversiones esenciales o compromisos fijos. **NO debes sugerir recortarlos, eliminarlos ni cuestionar si son necesarios**. Concentra tus recomendaciones de ahorro exclusivamente en gastos hormiga, gastos variables o de consumo discrecional (comidas fuera, entretenimiento, compras no esenciales).
+4. **Criterio de Ahorros**:
+   - Las cuentas que contengan la palabra "Ahorro" o "Ahorros" en su nombre son fondos reservados de ahorro. **NO debes sumarlos como dinero disponible para gasto diario**, sino valorarlos como un capital acumulado de protección.
+5. **Formato**: Usa formato Markdown limpio y profesional (negritas, listas con viñetas, bloques de cita). No incluyas intros innecesarios de chat como "Aquí tienes tu análisis". Ve directo al grano.
+6. **Restricción de longitud**: Mantén el análisis conciso y accionable (máximo 4 párrafos cortos y 3 viñetas).
 
 Genera el análisis financiero:
 `;

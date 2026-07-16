@@ -168,6 +168,9 @@ export function getAccountIconPath(accountName?: string): string {
   if (!accountName) return "/categories/cat_otro.png";
   const cleaned = cleanString(accountName);
 
+  if (cleaned.includes("ahorro")) {
+    return "/categories/cat_ahorro.png"; // Piggy bank icon
+  }
   if (cleaned.includes("efectivo") || cleaned.includes("cash")) {
     return "/categories/cat_salario.png"; // Cash stack icon
   }
@@ -176,7 +179,6 @@ export function getAccountIconPath(accountName?: string): string {
     cleaned.includes("cuenta") ||
     cleaned.includes("produbanco") ||
     cleaned.includes("guayaquil") ||
-    cleaned.includes("ahorro") ||
     cleaned.includes("pichincha") ||
     cleaned.includes("internacional")
   ) {

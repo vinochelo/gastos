@@ -201,7 +201,9 @@ export default function Dashboard() {
       }
     });
     
-    const totalBalance = accounts.reduce((acc, a) => acc + Number(a.saldo || 0), 0);
+    const totalBalance = accounts
+      .filter(a => !a.nombre.toLowerCase().includes("ahorro"))
+      .reduce((acc, a) => acc + Number(a.saldo || 0), 0);
     
     return { income, expense, totalBalance };
   }, [transactions, accounts, selectedMonth, selectedYear]);
@@ -423,7 +425,7 @@ export default function Dashboard() {
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 dark:from-indigo-950/50 dark:to-indigo-900/30 rounded-3xl p-5 text-white border border-indigo-500/10 shadow-lg shadow-indigo-500/10 relative overflow-hidden glass-glow">
           <div className="absolute top-0 right-0 -mt-6 -mr-6 w-20 h-20 bg-white/5 rounded-full blur-xl" />
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-200 dark:text-indigo-400 mb-1.5 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Balance Total
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Dinero Disponible
           </p>
           <p className="text-2xl font-black tracking-tight leading-none">${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
         </div>
