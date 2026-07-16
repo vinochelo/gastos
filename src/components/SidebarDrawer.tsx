@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 
 export default function SidebarDrawer() {
   const { 
@@ -65,12 +66,16 @@ export default function SidebarDrawer() {
             {/* Header */}
             <div className="flex items-center justify-between mb-8 pb-4 border-b border-border/10">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 text-indigo-600 flex items-center justify-center border border-indigo-600/5">
-                  <User size={20} />
-                </div>
+                <Image 
+                  src="/app_icon.png" 
+                  alt="Logo" 
+                  width={38} 
+                  height={38} 
+                  className="rounded-xl shadow-md border border-border/10"
+                />
                 <div className="min-w-0">
                   <h3 className="font-extrabold text-sm text-foreground truncate">GESTOR.AI</h3>
-                  <p className="text-[10px] text-foreground/40 font-semibold truncate max-w-[150px]">
+                  <p className="text-[10px] text-foreground/45 font-semibold truncate max-w-[150px]">
                     {auth.currentUser?.email || "Usuario"}
                   </p>
                 </div>

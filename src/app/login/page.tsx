@@ -5,6 +5,8 @@ import { LogIn, KeyRound, Mail, User, Lock, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import Image from "next/image";
+
 export default function LoginPage() {
   const { 
     loginWithGoogle, 
@@ -89,9 +91,17 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[90vh] gap-8 p-6 text-center">
-      <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-700">
-        <h1 className="text-6xl font-black tracking-tighter bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">GESTOR.AI</h1>
-        <p className="text-base font-semibold text-foreground/60 max-w-xs mx-auto">Tus finanzas controladas en tiempo real, impulsadas con Inteligencia Artificial.</p>
+      <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-700 flex flex-col items-center">
+        <Image 
+          src="/app_icon.png" 
+          alt="Gestor.AI Icon" 
+          width={80} 
+          height={80} 
+          className="rounded-3xl shadow-xl border border-border/10 mb-2 hover:scale-105 transition-transform duration-300"
+          priority
+        />
+        <h1 className="text-5xl font-black tracking-tighter bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">GESTOR.AI</h1>
+        <p className="text-xs font-semibold text-foreground/60 max-w-xs mx-auto">Tus finanzas controladas en tiempo real, impulsadas con Inteligencia Artificial.</p>
       </div>
       
       <div className="glass p-8 rounded-[2.5rem] shadow-2xl space-y-6 w-full max-w-sm border border-white/20 dark:border-white/5 relative overflow-hidden animate-in zoom-in-95 duration-500">
