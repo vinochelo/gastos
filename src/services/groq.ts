@@ -124,38 +124,40 @@ Si el mensaje es solo un saludo o no puedes entender qué quiere hacer, devuelve
 }
 
 export function getHelpMessage(): string {
-  return `🤖 *Puedo ayudarte con:*
+  return `🤖 *¡Hola! Soy tu asistente contable y financiero (GESTOR.AI).* 
 
- 📝 *Registrar gastos:*
-"gasté 50 en comida"
-"pagué 20 de taxi"
+Puedes enviarme notas de voz, fotos de facturas o texto. Aquí tienes los comandos que entiendo:
 
- 💰 *Registrar ingresos:*
-"recibí 500 de salario"
-"ingresé 1000"
+💰 *REGISTROS RÁPIDOS:*
+• *Gastos:* "gasté 50 en comida", "pagué 20 de taxi", "12.50 pasaje de bus"
+• *Ingresos:* "recibí 500 de salario", "ingresé 100"
+• *Con fecha:* "ayer gasté 30 en ropa", "el lunes pagué 15 de almuerzo"
 
- 💼 *Ver saldos:*
-"mi saldo"
-"cuánto tengo"
+💸 *TRANSFERENCIAS ENTRE CUENTAS:*
+• "transferí 50 de efectivo a produbanco"
+• "mueve 100 de guayaquil a peigo"
 
- 📊 *Gastos por categoría:*
-"cuánto gasté en transporte"
-"mis gastos del mes"
+🔄 *RECLASIFICAR Y EDITAR (Última Transacción):*
+• *Cambiar categoría:* "era comida no cine", "pásalo a juguetes"
+• *Cambiar monto:* "cambia el monto a 60", "era 10 no 20"
+• *Cambiar cuenta:* "fue con tarjeta no efectivo", "pagado con produbanco"
+• *Cambiar tipo:* "cámbialo a ingreso"
 
- ❌ *Eliminar transacciones:*
-"borra el gasto de 100"
+❌ *ELIMINAR / DESHACER:*
+• "borra eso", "cancela el último gasto", "elimina la última transacción"
 
- 📅 *Con fecha específica:*
-"ayer gasté 30"
-"el lunes pagué 50"
+💼 *CONSULTAS Y SALDOS:*
+• *Saldos de cuentas:* "mi saldo", "cuánto tengo en efectivo", "balances"
+• *Resumen de gastos:* "mis gastos de este mes", "cuánto gasté en comida"
 
- 🌐 *Acceder a la web:*
-"dame el link" | "cómo entro a la app" | "la página web"
+🧠 *ASESORÍA IA (GESTOR.AI):*
+• "analiza mis finanzas", "dame consejos", "recomiéndame qué hacer"
 
- 📸 *Escanear facturas:*
-"Envía una foto de tu ticket o factura y la analizaré automáticamente."
+📸 *FACTURAS:*
+• Envía una foto de tu ticket o factura y la procesaré automáticamente.
 
-¡Escríbeme cualquier cosa y haré mi mejor esfuerzo!`;
+🌐 *APLICACIÓN WEB:*
+• Escribe "link" o "web" para obtener el enlace de acceso directo.`;
 }
 
 export async function editPendingWithAI(oldData: any, userInput: string, userExpCats?: string[], userIncCats?: string[]) {
