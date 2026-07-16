@@ -43,11 +43,11 @@ export const AVAILABLE_ICONS: IconDefinition[] = [
   { key: "supermercado", name: "Supermercado / Súper", path: "/categories/cat_supermercado.png" },
   { key: "auto", name: "Auto / Gasolina", path: "/categories/cat_auto.png" },
   { key: "ropa", name: "Ropa & Moda", path: "/categories/cat_ropa.png" },
-  { key: "belleza", name: "Belleza & Cuidado", path: "/categories/cat_belleza.png" },
   { key: "ahorro", name: "Ahorro & Inversión", path: "/categories/cat_ahorro.png" },
   { key: "cafe", name: "Cafetería / Snacks", path: "/categories/cat_cafe.png" },
   
   // Custom SVG/Lucide Icons (Dynamic colorful badges for remaining or ungenerated categories)
+  { key: "belleza", name: "Belleza & Cuidado", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "belleza", gradient: "from-pink-400 to-rose-500" },
   { key: "fiesta", name: "Fiesta & Eventos", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "fiesta", gradient: "from-amber-400 to-orange-500" },
   { key: "tecnologia", name: "Tecnología / Gadgets", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "tecnologia", gradient: "from-slate-600 to-slate-800" },
 ];
