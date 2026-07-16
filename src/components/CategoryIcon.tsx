@@ -4,7 +4,8 @@ import React from "react";
 import { 
   Home, Film, Utensils, ShoppingBag, Phone, Dumbbell, Heart, Calculator, 
   Gamepad2, PawPrint, Zap, Bus, Car, Banknote, TrendingUp, Gift, HelpCircle,
-  Wrench, HeartHandshake, User, Candy, GraduationCap, Plane, GlassWater, Store, Coins
+  Wrench, HeartHandshake, User, Candy, GraduationCap, Plane, GlassWater, Store, Coins,
+  ShoppingCart, Shirt, Sparkles, PiggyBank, PartyPopper, Laptop, Coffee
 } from "lucide-react";
 import { getCategoryIconPath, AVAILABLE_ICONS } from "@/lib/categoryIcons";
 
@@ -35,7 +36,15 @@ const LUCIDE_ICONS: Record<string, React.ComponentType<any>> = {
   viajes: Plane,
   bebidas: GlassWater,
   negocio: Store,
-  prestado: Coins
+  prestado: Coins,
+  supermercado: ShoppingCart,
+  auto: Car,
+  ropa: Shirt,
+  belleza: Sparkles,
+  ahorro: PiggyBank,
+  fiesta: PartyPopper,
+  tecnologia: Laptop,
+  cafe: Coffee
 };
 
 interface CategoryIconProps {

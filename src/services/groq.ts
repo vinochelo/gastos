@@ -46,9 +46,10 @@ El usuario te envía un mensaje sobre sus finanzas personales. Tu trabajo es ent
   5. **RECLASIFICAR**: "era comida no cine", "me equivoqué era transporte", "pasa eso a juegos"
     - Detecta que quiere cambiar categoría de algo ya registrado
 
-  6. **EDITAR TRANSACCIÓN**: "cambia eso", "modifica el monto a 50", "era 100 no 200", "cámbialo a ingreso", "cambia la cuenta a banco"
+  6. **EDITAR TRANSACCIÓN**: "cambia eso", "modifica el monto a 50", "era 100 no 200", "cámbialo a ingreso", "cambia la cuenta a banco", "el ultimo pago fue con produbanco"
     - Usa "editar" cuando el usuario quiere cambiar algo de la última transacción sin borrarla completamente.
-    - Si dice "era X no Y" (ej: "era 100 no 200"), implica que hubo un error en el monto anterior y quiere cambiarlo.
+    - Si dice "era X no Y" (ej: "era 100 no 200", "era produbanco no efectivo"), implica que hubo un error y quiere cambiarlo.
+    - Ejemplos de cambio de cuenta: "el ultimo pago fue con produbanco" -> tipo: "editar", cuenta: "Produbanco"; "paga con banco" -> tipo: "editar", cuenta: "Banco"; "cambia la cuenta a efectivo" -> tipo: "editar", cuenta: "Efectivo".
     - Puede cambiar: monto, categoría, tipo (gasto/ingreso), cuenta.
 
 6. **CONSULTAR SALDO**: "cuánto tengo", "mi saldo", "cuánto hay en la cuenta", "balances"
@@ -197,19 +198,20 @@ export async function generateFinancialAnalysis(
   categoryExpenses: Record<string, number>,
   userName: string = "Usuario"
 ): Promise<string> {
-  const dateStr = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-  const balanceText = balances.map(b => `${b.nombre}: $${b.saldo.toFixed(2)}`).join("\n");
-  const categoryText = Object.entries(categoryExpenses)
-    .map(([cat, val]) => `- ${cat}: $${val.toFixed(2)}`)
-    .join("\n");
+  try {
+    const dateStr = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    const balanceText = (balances || []).map(b => `${b.nombre}: $${Number(b.saldo || 0).toFixed(2)}`).join("\n");
+    const categoryText = Object.entries(categoryExpenses || {})
+      .map(([cat, val]) => `- ${cat}: $${Number(val || 0).toFixed(2)}`)
+      .join("\n");
 
-  const prompt = `
+    const prompt = `
 Eres un asesor financiero personal experto en finanzas personales para latinoamérica, llamado GESTOR.AI.
 Analiza la situación financiera de ${userName} para el mes de ${dateStr} con los siguientes datos reales:
 
 **DATOS FINANCIEROS:**
-- Ingresos Totales de este mes: $${incomeTotal.toFixed(2)}
-- Gastos Totales de este mes: $${expenseTotal.toFixed(2)}
+- Ingresos Totales de este mes: $${Number(incomeTotal || 0).toFixed(2)}
+- Gastos Totales de este mes: $${Number(expenseTotal || 0).toFixed(2)}
 - Balances actuales en Cuentas:
 ${balanceText}
 
@@ -229,7 +231,6 @@ ${categoryText || "No hay gastos registrados este mes."}
 Genera el análisis financiero:
 `;
 
-  try {
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: "system", content: "Eres un asesor financiero inteligente experto en finanzas personales. Devuelves respuestas directas en Markdown." },

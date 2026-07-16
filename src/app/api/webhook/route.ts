@@ -11,6 +11,76 @@ import os from "os";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || "");
 
+function levenshteinDistance(s1: string, s2: string): number {
+  const len1 = s1.length;
+  const len2 = s2.length;
+  const matrix = Array.from({ length: len1 + 1 }, () => new Array(len2 + 1).fill(0));
+
+  for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+  for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[len1][len2];
+}
+
+function cleanAccountName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .replace(/[^a-z0-9]/g, ""); // Keep only letters and numbers
+}
+
+function findAccount(accountQuery: string | undefined, accountsList: any[]): any | null {
+  if (!accountQuery) return null;
+  const cleanQuery = cleanAccountName(accountQuery);
+  if (!cleanQuery) return null;
+
+  // 1. Exact match (after cleaning)
+  let bestMatch = accountsList.find(d => cleanAccountName(d.data().nombre) === cleanQuery);
+  if (bestMatch) return bestMatch;
+
+  // 2. Starts with / Ends with or Substring
+  bestMatch = accountsList.find(d => {
+    const cleanName = cleanAccountName(d.data().nombre);
+    return cleanName.includes(cleanQuery) || cleanQuery.includes(cleanName);
+  });
+  if (bestMatch) return bestMatch;
+
+  // 3. Levenshtein distance for fuzzy matching
+  let minDistance = Infinity;
+  let candidate = null;
+  for (const doc of accountsList) {
+    const cleanName = cleanAccountName(doc.data().nombre);
+    if (Math.abs(cleanName.length - cleanQuery.length) <= 3) {
+      const dist = levenshteinDistance(cleanName, cleanQuery);
+      if (dist < minDistance) {
+        minDistance = dist;
+        candidate = doc;
+      }
+    }
+  }
+
+  if (candidate) {
+    const cleanName = cleanAccountName(candidate.data().nombre);
+    const maxAllowedDist = Math.max(1, Math.floor(cleanName.length * 0.3));
+    if (minDistance <= maxAllowedDist) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 async function handlePendingEdit(ctx: any, userId: string, pendingId: string, userInput: string) {
   ctx.reply("✏️ Aplicando cambio...");
   const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
@@ -137,14 +207,8 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         }
       } 
       else if (item.tipo === "transferencia") {
-        const fromDoc = accountsSnap.docs.find(d => 
-          d.data().nombre.toLowerCase().includes(item.fromCuenta?.toLowerCase()) ||
-          item.fromCuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
-        );
-        const toDoc = accountsSnap.docs.find(d => 
-          d.data().nombre.toLowerCase().includes(item.toCuenta?.toLowerCase()) ||
-          item.toCuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
-        );
+        const fromDoc = findAccount(item.fromCuenta, accountsSnap.docs);
+        const toDoc = findAccount(item.toCuenta, accountsSnap.docs);
         if (fromDoc && toDoc) {
           batch.set(adminDb.collection("transactions").doc(), {
             userId, monto, tipo: "transferencia", fromId: fromDoc.id, toId: toDoc.id,
@@ -225,10 +289,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
             mensaje += "_(No se pudo generar el análisis de IA en este momento)_";
           }
         } else {
-          const cuentaMatch = accountsSnap.docs.find(d => 
-            d.data().nombre.toLowerCase().includes(cuentaBuscada) ||
-            cuentaBuscada.includes(d.data().nombre.toLowerCase())
-          );
+          const cuentaMatch = findAccount(cuentaBuscada, accountsSnap.docs);
           if (cuentaMatch) {
             const data = cuentaMatch.data();
             mensaje = `💰 *${data.nombre}:* $${(data.saldo || 0).toFixed(2)}`;
@@ -264,6 +325,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
             }
           }
           ctx.reply(`📊 GASTOS EN ${catBuscada.toUpperCase()} (${mesActual}):\n\n💰 Total: $${total.toFixed(2)}\n📝 Transacciones: ${count}`);
+          return;
         } else {
           const porCategoria: Record<string, number> = {};
           for (const doc of transSnap.docs) {
@@ -295,8 +357,9 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         for (const doc of recentSnap.docs) {
           const data = doc.data();
           const matchMonto = Math.abs(data.monto) === montoReverso;
+          const matchedAcc = cuentaBuscada ? findAccount(cuentaBuscada, accountsSnap.docs) : null;
           const matchCuenta = !cuentaBuscada || 
-            (data.accountId && accountsSnap.docs.some(a => a.id === data.accountId && a.data().nombre.toLowerCase().includes(cuentaBuscada)));
+            (data.accountId && matchedAcc && matchedAcc.id === data.accountId);
           
           if (matchMonto && matchCuenta) {
             const isGasto = data.tipo === "gasto";
@@ -343,8 +406,8 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
             
             let matchAc = true;
             if (buscarCuenta && data.accountId) {
-              const acc = accountsSnap.docs.find(a => a.id === data.accountId);
-              matchAc = acc ? acc.data().nombre.toLowerCase().includes(buscarCuenta) : false;
+              const matchedAcc = findAccount(buscarCuenta, accountsSnap.docs);
+              matchAc = matchedAcc ? matchedAcc.id === data.accountId : false;
             }
             
             const matchC = buscarCat ? data.categoria?.toLowerCase() === buscarCat : true;
@@ -376,10 +439,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
           
           let newAccountId = oldAccountId;
           if (item.cuenta) {
-            const newAccountDoc = accountsSnap.docs.find(d => 
-              d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||
-              item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
-            );
+            const newAccountDoc = findAccount(item.cuenta, accountsSnap.docs);
             if (newAccountDoc) newAccountId = newAccountDoc.id;
           }
 
@@ -434,10 +494,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
           results.push(`⚠️ No encontré ninguna transacción para editar.`);
         }
       } else {
-        let accountDoc = accountsSnap.docs.find(d => 
-          d.data().nombre.toLowerCase().includes(item.cuenta?.toLowerCase()) ||
-          item.cuenta?.toLowerCase().includes(d.data().nombre.toLowerCase())
-        );
+        let accountDoc = findAccount(item.cuenta, accountsSnap.docs);
         
         // Si no se指定cuenta o no matchea, buscar "Efectivo"
         if (!accountDoc) {
