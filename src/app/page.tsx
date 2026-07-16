@@ -53,7 +53,11 @@ export default function Dashboard() {
       const res = await fetch(getApiUrl("/api/analysis"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.uid })
+        body: JSON.stringify({ 
+          userId: user.uid,
+          month: selectedMonth,
+          year: selectedYear
+        })
       });
       const data = await res.json();
       if (data.analysis) {

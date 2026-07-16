@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const { userId, month, year } = await request.json();
 
     if (!userId) {
       return NextResponse.json({ error: "User ID requerido" }, { status: 400 });
@@ -22,14 +22,25 @@ export async function POST(request: NextRequest) {
       saldo: doc.data().saldo || 0
     }));
 
-    // 2. Fetch current month's transactions
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    // 2. Calculate the date range for the requested month
+    let startOfMonth: Date;
+    let endOfMonth: Date;
 
+    if (month !== undefined && year !== undefined) {
+      startOfMonth = new Date(year, month, 1, 0, 0, 0, 0);
+      endOfMonth = new Date(year, month + 1, 1, 0, 0, 0, 0);
+    } else {
+      startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      endOfMonth = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 1, 0, 0, 0, 0);
+    }
+
+    // 3. Fetch transactions within the month's range
     const transSnap = await adminDb.collection("transactions")
       .where("userId", "==", userId)
       .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
+      .where("timestamp", "<", admin.firestore.Timestamp.fromDate(endOfMonth))
       .orderBy("timestamp", "desc")
       .get();
 
@@ -49,7 +60,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Extract monthly transactions detail list for AI context
+    // 4. Extract monthly transactions detail list for AI context
     const recentTransactionsList = transSnap.docs.map(doc => {
       const data = doc.data();
       return {
@@ -60,18 +71,20 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    // 4. Fetch user name for personalization
+    // 5. Fetch user name for personalization
     const userDoc = await adminDb.collection("users").doc(userId).get();
     const userName = userDoc.data()?.name || "Usuario";
 
-    // 5. Generate AI financial analysis
+    // 6. Generate AI financial analysis
     const analysis = await generateFinancialAnalysis(
       incomeTotal,
       expenseTotal,
       balancesList,
       categoryExpenses,
       userName,
-      recentTransactionsList
+      recentTransactionsList,
+      month,
+      year
     );
 
     return NextResponse.json({

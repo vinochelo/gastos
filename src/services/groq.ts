@@ -197,12 +197,19 @@ export async function generateFinancialAnalysis(
   balances: { nombre: string; saldo: number }[],
   categoryExpenses: Record<string, number>,
   userName: string = "Usuario",
-  recentTransactions: { tipo: string; monto: number; categoria: string; descripcion?: string }[] = []
+  recentTransactions: { tipo: string; monto: number; categoria: string; descripcion?: string }[] = [],
+  targetMonth?: number,
+  targetYear?: number
 ): Promise<string> {
   try {
-    const dateStr = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    const targetDate = (targetMonth !== undefined && targetYear !== undefined)
+      ? new Date(targetYear, targetMonth, 1)
+      : new Date();
+    const dateStr = targetDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     const currentDateStr = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const currentDay = new Date().getDate();
+    
+    const isCurrentMonth = (targetDate.getMonth() === new Date().getMonth() && targetDate.getFullYear() === new Date().getFullYear());
 
     const balanceText = (balances || []).map(b => `${b.nombre}: $${Number(b.saldo || 0).toFixed(2)}`).join("\n");
     const categoryText = Object.entries(categoryExpenses || {})
@@ -213,12 +220,17 @@ export async function generateFinancialAnalysis(
       .map(t => `- [${t.tipo.toUpperCase()}] ${t.categoria}: $${Number(t.monto).toFixed(2)}${t.descripcion ? ` (${t.descripcion})` : ""}`)
       .join("\n");
 
+    const progressContext = isCurrentMonth
+      ? `*NOTA TEMPORAL IMPORTANTE*: Dado que estamos a mediados de mes (Día ${currentDay}), advierte claramente al usuario que el balance positivo actual no es un ahorro consolidado final de mes, sino el presupuesto/superávit temporal disponible para afrontar los gastos del resto de días del mes. Aconséjale administrar con cautela este saldo positivo.`
+      : `*NOTA HISTÓRICA*: Este mes de ${dateStr} ya finalizó por completo. Evalúa el rendimiento financiero y el balance final de forma definitiva y consolidada para todo el período mensual transcurrido.`;
+
     const prompt = `
 Eres un asesor financiero personal experto en finanzas personales para latinoamérica, llamado GESTOR.AI.
 Analiza la situación financiera de ${userName} para el mes de ${dateStr} con los siguientes datos reales:
 
 **DATOS TEMPORALES:**
 - Fecha de hoy: ${currentDateStr} (Día ${currentDay} del mes)
+- Mes bajo análisis: ${dateStr}
 
 **DATOS FINANCIEROS:**
 - Ingresos Totales de este mes: $${Number(incomeTotal || 0).toFixed(2)}
@@ -234,18 +246,18 @@ ${txListText || "No hay transacciones registradas este mes."}
 
 **INSTRUCCIONES PARA TU ANÁLISIS:**
 1. **Tono**: Empático, profesional, motivador y claro. Evita tecnicismos innecesarios.
-2. **Estructura**:
+2. **Estructura Recomendada**:
    - **Resumen del Estado de Salud Financiera**: ¿Cómo se ve su mes? (¿Está ahorrando, al límite, o gastando de más?). Calcula su tasa de ahorro.
-     *NOTA TEMPORAL IMPORTANTE*: Dado que estamos a mediados de mes (Día ${currentDay}), advierte claramente al usuario que el balance positivo actual no es un ahorro consolidado final de mes, sino el presupuesto/superávit temporal disponible para afrontar los gastos del resto de días del mes. Aconséjale administrar con cautela este saldo positivo.
+     ${progressContext}
    - **Categorías de Alerta**: Identifica la categoría donde más ha gastado. **Lee el listado detallado de transacciones y sus descripciones** para entender de qué se trata exactamente y evaluar si es justificable o preocupante (por ejemplo, si la categoría es el nombre de una persona pero la descripción aclara que es la cuota de la universidad o matrícula, reconócelo como un gasto educativo o inversión esencial).
-   - **Recomendaciones Prácticas (3 Puntos)**: Consejos específicos y realistas para reducir gastos en sus categorías críticas o mejorar sus cuentas.
+   - **Recomendaciones Prácticas**: Consejos específicos, detallados y realistas para reducir gastos en sus categorías críticas, mejorar sus cuentas o presupuestar mejor. Explica el porqué y cómo aplicar cada consejo.
    - **Frase Corta Motivadora**: Una línea corta al final que inspire control financiero.
 3. **Criterio de Gastos Fijos vs. Variables (Crítico)**:
    - Categorías como "Educación", "Universidad", "Estudios", "Diezmos" o "Arriendo/Casa" son inversiones esenciales o compromisos fijos. **NO debes sugerir recortarlos, eliminarlos ni cuestionar si son necesarios**. Concentra tus recomendaciones de ahorro exclusivamente en gastos hormiga, gastos variables o de consumo discrecional (comidas fuera, entretenimiento, compras no esenciales).
 4. **Criterio de Ahorros**:
    - Las cuentas que contengan la palabra "Ahorro" o "Ahorros" en su nombre son fondos reservados de ahorro. **NO debes sumarlos como dinero disponible para gasto diario**, sino valorarlos como un capital acumulado de protección.
 5. **Formato**: Usa formato Markdown limpio y profesional (negritas, listas con viñetas, bloques de cita). No incluyas intros innecesarios de chat como "Aquí tienes tu análisis". Ve directo al grano.
-6. **Restricción de longitud**: Mantén el análisis conciso y accionable (máximo 4 párrafos cortos y 3 viñetas).
+6. **Sin Restricciones de Longitud**: No limites artificialmente tus respuestas ni la cantidad de explicaciones. Ofrece un análisis profundo, completo, claro y verdaderamente útil para las finanzas del usuario.
 
 Genera el análisis financiero:
 `;
@@ -256,8 +268,8 @@ Genera el análisis financiero:
         { role: "user", content: prompt }
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.6,
-      max_tokens: 800
+      temperature: 0.7,
+      max_tokens: 1500
     });
 
     return chatCompletion.choices[0]?.message?.content || "No se pudo generar el análisis en este momento.";
