@@ -146,9 +146,10 @@ Puedes enviarme notas de voz, fotos de facturas o texto. Aquí tienes los comand
 ❌ *ELIMINAR / DESHACER:*
 • "borra eso", "cancela el último gasto", "elimina la última transacción"
 
-💼 *CONSULTAS Y SALDOS:*
+💼 *CONSULTAS Y REPORTES:*
 • *Saldos de cuentas:* "mi saldo", "cuánto tengo en efectivo", "balances"
-• *Resumen de gastos:* "mis gastos de este mes", "cuánto gasté en comida"
+• *Gastos generales del mes:* "mis gastos", "cuánto he gastado este mes", "gastos del mes"
+• *Gastos por categoría:* "cuánto gasté en comida", "gastos de viaje este mes", "qué gasté en taxi"
 
 🧠 *ASESORÍA IA (GESTOR.AI):*
 • "analiza mis finanzas", "dame consejos", "recomiéndame qué hacer"
