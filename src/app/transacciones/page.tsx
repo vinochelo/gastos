@@ -1,18 +1,61 @@
 'use client';
 
-import { useState } from "react";
-import { useRecentTransactions, Transaction, useUserConfig, useAccounts } from "@/hooks/useFirestore";
+import { useState, useEffect } from "react";
+import { Transaction, useUserConfig, useAccounts } from "@/hooks/useFirestore";
 import { Search, Trash2, Plus, Minus, Repeat, Settings } from "lucide-react";
-import { db } from "@/lib/firebase";
-import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, deleteDoc, updateDoc, increment, collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import EditTransactionModal from "@/components/EditTransactionModal";
 import CategoryIcon from "@/components/CategoryIcon";
 
 export default function TransaccionesPage() {
-  const { transactions, loading } = useRecentTransactions(100);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
   const { accounts } = useAccounts();
   const { config } = useUserConfig();
+
+  useEffect(() => {
+    let unsubscribeFirestore: (() => void) | null = null;
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+        unsubscribeFirestore = null;
+      }
+      if (!user) {
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const q = query(
+        collection(db, "transactions"),
+        where("userId", "==", user.uid),
+        where("timestamp", ">=", startOfMonth),
+        orderBy("timestamp", "desc")
+      );
+
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => {
+          const tx = doc.data() as Transaction;
+          tx.id = doc.id;
+          return tx;
+        });
+        setTransactions(data);
+        setLoading(false);
+      });
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeFirestore) unsubscribeFirestore();
+    };
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const router = useRouter();
