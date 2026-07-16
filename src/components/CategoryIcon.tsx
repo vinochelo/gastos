@@ -5,7 +5,7 @@ import {
   Home, Film, Utensils, ShoppingBag, Phone, Dumbbell, Heart, Calculator, 
   Gamepad2, PawPrint, Zap, Bus, Car, Banknote, TrendingUp, Gift, HelpCircle,
   Wrench, HeartHandshake, User, Candy, GraduationCap, Plane, GlassWater, Store, Coins,
-  ShoppingCart, Shirt, Sparkles, PiggyBank, PartyPopper, Laptop, Coffee
+  ShoppingCart, Shirt, Sparkles, PiggyBank, PartyPopper, Laptop, Coffee, ToyBrick
 } from "lucide-react";
 import { getCategoryIconPath, AVAILABLE_ICONS } from "@/lib/categoryIcons";
 
@@ -44,7 +44,8 @@ const LUCIDE_ICONS: Record<string, React.ComponentType<any>> = {
   ahorro: PiggyBank,
   fiesta: PartyPopper,
   tecnologia: Laptop,
-  cafe: Coffee
+  cafe: Coffee,
+  juguetes: ToyBrick
 };
 
 interface CategoryIconProps {

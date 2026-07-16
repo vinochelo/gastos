@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from "react";
-import { useRecentTransactions, Transaction, useUserConfig } from "@/hooks/useFirestore";
+import { useRecentTransactions, Transaction, useUserConfig, useAccounts } from "@/hooks/useFirestore";
 import { Search, Trash2, Plus, Minus, Repeat, Settings } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, updateDoc, increment } from "firebase/firestore";
@@ -11,6 +11,7 @@ import CategoryIcon from "@/components/CategoryIcon";
 
 export default function TransaccionesPage() {
   const { transactions, loading } = useRecentTransactions(100);
+  const { accounts } = useAccounts();
   const { config } = useUserConfig();
   const [searchQuery, setSearchQuery] = useState("");
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -96,7 +97,14 @@ export default function TransaccionesPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
-                  <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider mt-0.5">{tx.categoria}</p>
+                  <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider mt-0.5">
+                    {tx.categoria}
+                    {tx.tipo === 'transferencia' ? (
+                      ` • ${accounts.find(a => a.id === tx.fromId)?.nombre || 'Origen'} ➔ ${accounts.find(a => a.id === tx.toId)?.nombre || 'Destino'}`
+                    ) : (
+                      tx.accountId ? ` • ${accounts.find(a => a.id === tx.accountId)?.nombre || 'Cuenta'}` : ''
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">

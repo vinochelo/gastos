@@ -542,7 +542,14 @@ export default function Dashboard() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
-                    <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider">{tx.categoria}</p>
+                    <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider mt-0.5">
+                      {tx.categoria}
+                      {tx.tipo === 'transferencia' ? (
+                        ` • ${accounts.find(a => a.id === tx.fromId)?.nombre || 'Origen'} ➔ ${accounts.find(a => a.id === tx.toId)?.nombre || 'Destino'}`
+                      ) : (
+                        tx.accountId ? ` • ${accounts.find(a => a.id === tx.accountId)?.nombre || 'Cuenta'}` : ''
+                      )}
+                    </p>
                   </div>
                 </div>
               

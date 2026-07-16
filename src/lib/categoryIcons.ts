@@ -50,6 +50,7 @@ export const AVAILABLE_ICONS: IconDefinition[] = [
   { key: "belleza", name: "Belleza & Cuidado", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "belleza", gradient: "from-pink-400 to-rose-500" },
   { key: "fiesta", name: "Fiesta & Eventos", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "fiesta", gradient: "from-amber-400 to-orange-500" },
   { key: "tecnologia", name: "Tecnología / Gadgets", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "tecnologia", gradient: "from-slate-600 to-slate-800" },
+  { key: "juguetes", name: "Juguetes & Hobbies", path: "/categories/cat_otro.png", isSvg: true, lucideKey: "juguetes", gradient: "from-sky-400 to-blue-500" },
 ];
 
 // Helper to remove accents and lowercase a string
@@ -121,6 +122,10 @@ const DEFAULT_CATEGORY_MAPPINGS: Record<string, string> = {
   cafe: "cafe",
   cafeteria: "cafe",
   starbucks: "cafe",
+  juguetes: "juguetes",
+  juguete: "juguetes",
+  lego: "juguetes",
+  jugueteria: "juguetes",
   otro: "otro",
 };
 
