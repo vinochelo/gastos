@@ -18,6 +18,7 @@ import { useMemo } from "react";
 import { getApiUrl } from "@/lib/api";
 import CategoryIcon from "@/components/CategoryIcon";
 import { useApp } from "@/context/AppContext";
+import SplashLoading from "@/components/SplashLoading";
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -223,11 +224,7 @@ export default function Dashboard() {
     });
   }, [transactions, selectedMonth, selectedYear]);
 
-  if (authLoading) return (
-    <div className="flex h-64 items-center justify-center">
-      <Loader2 size={24} className="animate-spin text-indigo-500" />
-    </div>
-  );
+  if (authLoading) return <SplashLoading />;
   
   if (!user) {
     router.push("/login");

@@ -76,21 +76,21 @@ function FloatingTorus({ position, color, speed, scale }: { position: [number, n
 export default function Scene3D() {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-950/20 via-transparent to-pink-950/20" />
+      <div className="absolute inset-0 bg-gradient-to-br from-teal-950/15 via-transparent to-emerald-950/15" />
       <Canvas camera={{ position: [0, 0, 10], fov: 50 }}>
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 10, 5]} intensity={0.8} />
-        <pointLight position={[-10, -10, -5]} intensity={0.4} color="#ec4899" />
-        <pointLight position={[10, -5, 5]} intensity={0.3} color="#8b5cf6" />
+        <pointLight position={[-10, -10, -5]} intensity={0.4} color="#0d9ca4" />
+        <pointLight position={[10, -5, 5]} intensity={0.3} color="#10b981" />
         
-        <FloatingSphere position={[-4, 3, -5]} color="#8b5cf6" speed={1} scale={0.5} />
-        <FloatingBox position={[5, -2, -4]} color="#ec4899" speed={1.5} scale={0.4} />
-        <FloatingTorus position={[-3, -3, -2]} color="#06b6d4" speed={0.8} scale={0.6} />
-        <FloatingSphere position={[3, 4, -6]} color="#f59e0b" speed={1.2} scale={0.35} />
-        <FloatingBox position={[-5, 1, -3]} color="#10b981" speed={0.9} scale={0.45} />
-        <FloatingTorus position={[4, 2, -5]} color="#ef4444" speed={1.1} scale={0.5} />
-        <FloatingSphere position={[0, -4, -3]} color="#a855f7" speed={0.7} scale={0.55} />
-        <FloatingBox position={[-2, 0, -6]} color="#14b8a6" speed={1.3} scale={0.3} />
+        <FloatingSphere position={[-4, 3, -5]} color="#0d9ca4" speed={1} scale={0.5} />
+        <FloatingBox position={[5, -2, -4]} color="#10b981" speed={1.5} scale={0.4} />
+        <FloatingTorus position={[-3, -3, -2]} color="#eab308" speed={0.8} scale={0.6} />
+        <FloatingSphere position={[3, 4, -6]} color="#2dd4bf" speed={1.2} scale={0.35} />
+        <FloatingBox position={[-5, 1, -3]} color="#0a7075" speed={0.9} scale={0.45} />
+        <FloatingTorus position={[4, 2, -5]} color="#14b8a6" speed={1.1} scale={0.5} />
+        <FloatingSphere position={[0, -4, -3]} color="#eab308" speed={0.7} scale={0.55} />
+        <FloatingBox position={[-2, 0, -6]} color="#0891b2" speed={1.3} scale={0.3} />
       </Canvas>
     </div>
   );

@@ -1,22 +1,36 @@
 @import "tailwindcss";
 
+@theme {
+  --color-indigo-50: #eefdfd;
+  --color-indigo-100: #d6f7f8;
+  --color-indigo-200: #b0eff1;
+  --color-indigo-300: #78e0e5;
+  --color-indigo-400: #3bc6cf;
+  --color-indigo-500: #0d9ca4;
+  --color-indigo-600: #0a7075;
+  --color-indigo-700: #0c5b60;
+  --color-indigo-800: #0e494d;
+  --color-indigo-900: #103e41;
+  --color-indigo-950: #041416;
+}
+
 :root {
-  --background: #f6f8fc;
-  --foreground: #0f172a;
-  --primary: #4f46e5;
-  --primary-glow: rgba(79, 70, 229, 0.15);
+  --background: #f1f7f7;
+  --foreground: #082124;
+  --primary: #0a7075;
+  --primary-glow: rgba(10, 112, 117, 0.15);
   --card: #ffffff;
-  --border: #eef2f6;
+  --border: #e1ecec;
   --card-border: rgba(255, 255, 255, 0.6);
 }
 
 [data-theme='dark'] {
-  --background: #060913;
-  --foreground: #f1f5f9;
-  --primary: #6366f1;
-  --primary-glow: rgba(99, 102, 241, 0.25);
-  --card: #0d1222;
-  --border: #141b2d;
+  --background: #041416;
+  --foreground: #edf6f7;
+  --primary: #0d9ca4;
+  --primary-glow: rgba(13, 156, 164, 0.25);
+  --card: #082226;
+  --border: #0d2f34;
   --card-border: rgba(255, 255, 255, 0.05);
 }
 

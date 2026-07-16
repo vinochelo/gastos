@@ -8,7 +8,7 @@ import OfflineIndicator from './OfflineIndicator';
 
 const Scene3D = dynamic(() => import('./Scene3D'), { 
   ssr: false,
-  loading: () => <div className="fixed inset-0 -z-10 bg-gradient-to-br from-violet-950/30 via-background to-pink-950/30" />
+  loading: () => <div className="fixed inset-0 -z-10 bg-gradient-to-br from-teal-950/30 via-background to-emerald-950/30" />
 });
 
 export default function LayoutWrapper({ children }: { children: ReactNode }) {

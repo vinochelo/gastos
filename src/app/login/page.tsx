@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 
 import Image from "next/image";
 
+import SplashLoading from "@/components/SplashLoading";
+
 export default function LoginPage() {
   const { 
     loginWithGoogle, 
@@ -77,12 +79,7 @@ export default function LoginPage() {
 
   const displayedError = localError || authError;
 
-  if (loading || localLoading) return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background text-foreground">
-      <Loader2 size={32} className="animate-spin text-primary" />
-      <span className="font-bold text-sm tracking-wide animate-pulse">Procesando solicitud...</span>
-    </div>
-  );
+  if (loading || localLoading) return <SplashLoading />;
 
   if (user) {
     router.push("/");
