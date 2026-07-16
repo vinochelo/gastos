@@ -1,34 +1,34 @@
 {
   "project_info": {
-    "project_number": "306152243317",
-    "firebase_url": "https://gestor-gastos-mathew-123-default-rtdb.firebaseio.com",
-    "project_id": "gestor-gastos-mathew-123",
-    "storage_bucket": "gestor-gastos-mathew-123.firebasestorage.app"
+    "project_number": "505851925373",
+    "firebase_url": "https://control-de-gastos-78518-default-rtdb.firebaseio.com",
+    "project_id": "control-de-gastos-78518",
+    "storage_bucket": "control-de-gastos-78518.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:306152243317:android:5b73af79f81926eb11383c",
+        "mobilesdk_app_id": "1:505851925373:android:dc0ace4c53414f2de13214",
         "android_client_info": {
           "package_name": "com.gestordegastos.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "306152243317-0qnd5aqeu44k46535ea85u6qnld3pofr.apps.googleusercontent.com",
+          "client_id": "505851925373-rn8c8fnrjnht0qllfsldrnlnjoihijpf.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyAu7Fl3Leg6uqYq7e7oYahvZc8liYwg4VY"
+          "current_key": "AIzaSyBMVuWnvG3tZCWP2MdAHAmOjdLpU-DPd9U"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "306152243317-0qnd5aqeu44k46535ea85u6qnld3pofr.apps.googleusercontent.com",
+              "client_id": "505851925373-rn8c8fnrjnht0qllfsldrnlnjoihijpf.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

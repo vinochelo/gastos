@@ -90,7 +90,7 @@ Estructura exacta:
       "categoriaAnterior": "categoría incorrecta anterior que se quiere cambiar (ej: 'era comida no cine' -> categoria: 'Comida', categoriaAnterior: 'Cine')",
       "cuenta": "nombre de la cuenta nueva o detectada",
       "cuentaAnterior": "nombre de la cuenta incorrecta anterior que se quiere cambiar (ej: 'era efectivo no banco' -> cuenta: 'Efectivo', cuentaAnterior: 'Cuenta Bancaria')",
-      "descripcion": "descripción o lo que escribió el usuario",
+      "descripcion": "concepto limpio de la transacción en singular (ej: 'pan', 'taxi', 'almuerzo', 'salario'), excluyendo palabras de acción como 'añade', 'gasté', 'pagué', 'ingresa', 'un dólar', 'pesos' o similares",
       "fecha": "YYYY-MM-DD (solo si menciona fecha específica, si no omite el campo)",
       "nuevoTipo": "gasto | ingreso (SOLO para tipo 'editar', si el usuario quiere cambiar el tipo de la transacción)"
     }

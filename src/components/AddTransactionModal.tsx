@@ -145,19 +145,19 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         setDescription(initialData.descripcion || "");
         
         // Mapear cuenta
+        let finalAccountId = "";
         if (initialData.cuenta) {
           const matchedAcc = accounts.find(a => 
             a.nombre.toLowerCase().includes(initialData.cuenta!.toLowerCase()) ||
             initialData.cuenta!.toLowerCase().includes(a.nombre.toLowerCase())
           );
-          if (matchedAcc) {
-            setAccountId(matchedAcc.id);
-          } else {
-            setAccountId("");
-          }
-        } else {
-          setAccountId("");
+          if (matchedAcc) finalAccountId = matchedAcc.id;
         }
+        if (!finalAccountId) {
+          const efectivoAcc = accounts.find(a => a.nombre.toLowerCase() === "efectivo");
+          if (efectivoAcc) finalAccountId = efectivoAcc.id;
+        }
+        setAccountId(finalAccountId);
 
         // Mapear categoría
         const targetCategories = targetType === "gasto" ? expenseCategories : incomeCategories;
@@ -171,7 +171,8 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         setAmount("");
         setDescription("");
         setType(defaultType);
-        setAccountId("");
+        const efectivoAcc = accounts.find(a => a.nombre.toLowerCase() === "efectivo");
+        setAccountId(efectivoAcc ? efectivoAcc.id : "");
         setCategory(categories.length > 0 ? categories[0] : "");
       }
       setDate(new Date().toISOString().split('T')[0]);

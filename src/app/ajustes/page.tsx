@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, onSnapshot } from "firebase/firestore";
 import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2, Edit2, KeyRound, Sparkles } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
@@ -48,46 +48,55 @@ export default function AjustesPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeUser: (() => void) | null = null;
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          const snap = await getDoc(doc(db, "users", user.uid));
-          if (snap.exists()) {
-            const data = snap.data() as UserConfig;
-            setTelegramId(data.telegramId || "");
-            setTelegramLinked(!!data.telegramId);
-            
-            if (data.categoryIcons) {
-              setCategoryIcons(data.categoryIcons);
-            }
-            
-            if (data.expenseCategories?.length) {
-              setExpenseCategories(data.expenseCategories);
+          // Utilizar onSnapshot para obtener datos instantáneos de la caché y escuchar en tiempo real
+          unsubscribeUser = onSnapshot(doc(db, "users", user.uid), async (snap) => {
+            if (snap.exists()) {
+              const data = snap.data() as UserConfig;
+              setTelegramId(data.telegramId || "");
+              setTelegramLinked(!!data.telegramId);
+              
+              if (data.categoryIcons) {
+                setCategoryIcons(data.categoryIcons);
+              }
+              
+              if (data.expenseCategories?.length) {
+                setExpenseCategories(data.expenseCategories);
+              } else {
+                setExpenseCategories(DEFAULT_CATEGORIES);
+              }
+              
+              if (data.incomeCategories?.length) {
+                setIncomeCategories(data.incomeCategories);
+              } else {
+                setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
+              }
+
+              // Inicializar si faltan categorías
+              if (!data.expenseCategories?.length || !data.incomeCategories?.length) {
+                await updateDoc(doc(db, "users", user.uid), { 
+                  expenseCategories: data.expenseCategories?.length ? data.expenseCategories : DEFAULT_CATEGORIES,
+                  incomeCategories: data.incomeCategories?.length ? data.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]
+                });
+              }
             } else {
               setExpenseCategories(DEFAULT_CATEGORIES);
-            }
-            
-            if (data.incomeCategories?.length) {
-              setIncomeCategories(data.incomeCategories);
-            } else {
               setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
             }
-
-            if (!data.expenseCategories?.length || !data.incomeCategories?.length) {
-              await updateDoc(doc(db, "users", user.uid), { 
-                expenseCategories: data.expenseCategories?.length ? data.expenseCategories : DEFAULT_CATEGORIES,
-                incomeCategories: data.incomeCategories?.length ? data.incomeCategories : ["Salario", "Inversion", "Regalo", "Otro"]
-              });
-            }
-          } else {
+            setUserReady(true);
+            setAuthLoading(false);
+          }, (err) => {
+            console.error("Error loading user config from Firestore snapshot:", err);
             setExpenseCategories(DEFAULT_CATEGORIES);
             setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
-          }
+            setUserReady(true);
+            setAuthLoading(false);
+          });
         } catch (err) {
-          console.error("Error loading user config from Firestore:", err);
-          setExpenseCategories(DEFAULT_CATEGORIES);
-          setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
-        } finally {
+          console.error("Error setting up Firestore listener:", err);
           setUserReady(true);
           setAuthLoading(false);
         }
@@ -97,7 +106,10 @@ export default function AjustesPage() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeUser) unsubscribeUser();
+    };
   }, [router]);
 
   const showToast = (message: string) => {
@@ -172,26 +184,10 @@ export default function AjustesPage() {
   };
 
   useEffect(() => {
-    if (!telegramLinked && auth.currentUser && userReady) {
-      const interval = setInterval(async () => {
-        try {
-          const snap = await getDoc(doc(db, "users", auth.currentUser!.uid));
-          if (snap.exists()) {
-            const data = snap.data() as UserConfig;
-            if (data.telegramId) {
-              setTelegramId(data.telegramId);
-              setTelegramLinked(true);
-              setLinkingCode(null);
-              showToast("¡Telegram vinculado!");
-            }
-          }
-        } catch (err) {
-          console.error("Error checking:", err);
-        }
-      }, 3000);
-      return () => clearInterval(interval);
+    if (telegramLinked) {
+      setLinkingCode(null);
     }
-  }, [telegramLinked, userReady]);
+  }, [telegramLinked]);
 
   const copyToClipboard = async () => {
     if (!linkingCode) return;
@@ -675,13 +671,62 @@ export default function AjustesPage() {
       </div>
 
       {/* Bot command reference */}
-      <div className="glass rounded-3xl p-5 border border-border shadow-sm">
-        <h2 className="text-sm font-extrabold tracking-tight mb-3 text-foreground">Comandos del Asistente</h2>
-        <div className="text-xs space-y-2 opacity-60 text-foreground leading-relaxed">
-          <p>• <strong>"gasté 50 en comida"</strong> - Registrar gasto</p>
-          <p>• <strong>"recibí 500"</strong> - Registrar ingreso</p>
-          <p>• <strong>"mi saldo"</strong> - Ver saldos disponibles</p>
-          <p>• <strong>"cuánto gasté en comida este mes"</strong> - Historial de categoría</p>
+      <div className="glass rounded-3xl p-5 border border-border shadow-sm space-y-4">
+        <div>
+          <h2 className="text-sm font-extrabold tracking-tight text-foreground">Comandos del Asistente (Telegram o Voz)</h2>
+          <p className="text-[10px] text-foreground/45 mt-0.5">Guía de voz y texto para GESTOR.AI</p>
+        </div>
+        
+        <div className="text-xs space-y-3 text-foreground/75 leading-relaxed">
+          <div>
+            <p className="font-extrabold text-[10px] text-indigo-500 uppercase tracking-wider mb-1">💰 REGISTROS RÁPIDOS</p>
+            <ul className="list-disc pl-4 space-y-1 text-foreground/60">
+              <li><strong>"gasté 50 en comida"</strong> (Gasto)</li>
+              <li><strong>"recibí 500 de salario"</strong> (Ingreso)</li>
+              <li><strong>"ayer pagué 15 de almuerzo"</strong> (Con fecha)</li>
+            </ul>
+          </div>
+          
+          <div>
+            <p className="font-extrabold text-[10px] text-indigo-500 uppercase tracking-wider mb-1">💸 TRANSFERENCIAS</p>
+            <ul className="list-disc pl-4 space-y-1 text-foreground/60">
+              <li><strong>"transferí 50 de efectivo a produbanco"</strong></li>
+              <li><strong>"mueve 100 de guayaquil a peigo"</strong></li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-extrabold text-[10px] text-indigo-500 uppercase tracking-wider mb-1">🔄 RECLASIFICAR Y EDITAR</p>
+            <ul className="list-disc pl-4 space-y-1 text-foreground/60">
+              <li><strong>"era comida no cine"</strong> (Cambiar categoría)</li>
+              <li><strong>"cambia el monto a 60"</strong> (Cambiar monto)</li>
+              <li><strong>"fue con tarjeta no efectivo"</strong> (Cambiar cuenta)</li>
+              <li><strong>"cámbialo a ingreso"</strong> (Cambiar tipo)</li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-extrabold text-[10px] text-indigo-500 uppercase tracking-wider mb-1">❌ ELIMINAR / DESHACER</p>
+            <ul className="list-disc pl-4 space-y-1 text-foreground/60">
+              <li><strong>"borra eso"</strong> o <strong>"cancela el último gasto"</strong></li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-extrabold text-[10px] text-indigo-500 uppercase tracking-wider mb-1">💼 CONSULTAS Y REPORTES</p>
+            <ul className="list-disc pl-4 space-y-1 text-foreground/60">
+              <li><strong>"mi saldo"</strong> o <strong>"cuánto tengo en efectivo"</strong></li>
+              <li><strong>"mis gastos"</strong> o <strong>"cuánto he gastado este mes"</strong></li>
+              <li><strong>"cuánto gasté en comida este mes"</strong></li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-extrabold text-[10px] text-indigo-500 uppercase tracking-wider mb-1">🧠 ASESORÍA IA</p>
+            <ul className="list-disc pl-4 space-y-1 text-foreground/60">
+              <li><strong>"analiza mis finanzas"</strong> o <strong>"dame consejos"</strong></li>
+            </ul>
+          </div>
         </div>
       </div>
 
