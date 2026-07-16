@@ -241,6 +241,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
             const transSnap = await adminDb.collection("transactions")
               .where("userId", "==", userId)
               .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
+              .orderBy("timestamp", "desc")
               .get();
 
             let incomeTotal = 0;
