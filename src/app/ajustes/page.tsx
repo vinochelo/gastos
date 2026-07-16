@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, onSnapshot } from "firebase/firestore";
-import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2, Edit2, KeyRound, Sparkles } from "lucide-react";
+import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2, Edit2, KeyRound, Sparkles, ChevronUp, ChevronDown } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
@@ -313,6 +313,33 @@ export default function AjustesPage() {
     });
     setIconPickerCategory(null);
     showToast("Icono actualizado");
+  };
+
+  const moveCategory = async (index: number, direction: 'up' | 'down') => {
+    const targetArray = activeCategoryTab === 'gastos' ? expenseCategories : incomeCategories;
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= targetArray.length) return;
+
+    const updated = [...targetArray];
+    const temp = updated[index];
+    updated[index] = updated[newIndex];
+    updated[newIndex] = temp;
+
+    if (activeCategoryTab === 'gastos') {
+      setExpenseCategories(updated);
+      if (auth.currentUser) {
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          expenseCategories: updated
+        });
+      }
+    } else {
+      setIncomeCategories(updated);
+      if (auth.currentUser) {
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          incomeCategories: updated
+        });
+      }
+    }
   };
 
   const handleResetCategories = async () => {
@@ -636,6 +663,22 @@ export default function AjustesPage() {
                 <div className="flex items-center gap-1.5">
                   {!isEditingThis && (
                     <>
+                      <button
+                        onClick={() => moveCategory(categoriesToDisplay.indexOf(cat), 'up')}
+                        disabled={categoriesToDisplay.indexOf(cat) === 0}
+                        title="Subir"
+                        className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity text-foreground cursor-pointer disabled:opacity-10"
+                      >
+                        <ChevronUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => moveCategory(categoriesToDisplay.indexOf(cat), 'down')}
+                        disabled={categoriesToDisplay.indexOf(cat) === categoriesToDisplay.length - 1}
+                        title="Bajar"
+                        className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity text-foreground cursor-pointer disabled:opacity-10"
+                      >
+                        <ChevronDown size={11} />
+                      </button>
                       <button
                         onClick={() => setIconPickerCategory(cat)}
                         title="Cambiar Icono"

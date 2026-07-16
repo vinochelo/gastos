@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { useAccounts, useRecentTransactions, useUserConfig, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, AlertCircle, Sparkles, X } from "lucide-react";
+import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, AlertCircle, Sparkles, X, Menu } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
@@ -17,9 +17,11 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { getApiUrl } from "@/lib/api";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useApp } from "@/context/AppContext";
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
+  const { openDrawer, formatAmount } = useApp();
   const router = useRouter();
   const { accounts } = useAccounts();
   const { transactions } = useRecentTransactions(100);
@@ -259,23 +261,32 @@ export default function Dashboard() {
     <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
       <div className="flex flex-row items-center justify-between gap-3 py-2 border-b border-border/20">
-        <div className="flex flex-col min-w-0">
-          <p className="text-[9px] font-extrabold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Panel de Control</p>
-          <select
-            value={`${selectedMonth}-${selectedYear}`}
-            onChange={(e) => {
-              const [m, y] = e.target.value.split('-').map(Number);
-              setSelectedMonth(m);
-              setSelectedYear(y);
-            }}
-            className="text-xl sm:text-2xl font-black bg-transparent border-none p-0 pr-8 m-0 focus:ring-0 text-foreground cursor-pointer capitalize font-sans tracking-tight focus:outline-none hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+        <div className="flex items-center gap-3 min-w-0">
+          <button 
+            onClick={openDrawer}
+            className="md:hidden p-2 hover:bg-accent/40 rounded-xl transition-colors cursor-pointer shrink-0"
+            title="Abrir Menú"
           >
-            {monthOptions.map(opt => (
-              <option key={`${opt.month}-${opt.year}`} value={`${opt.month}-${opt.year}`} className="bg-white dark:bg-gray-800 text-foreground text-sm">
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            <Menu size={20} className="opacity-70 text-foreground" />
+          </button>
+          <div className="flex flex-col min-w-0">
+            <p className="text-[9px] font-extrabold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Panel de Control</p>
+            <select
+              value={`${selectedMonth}-${selectedYear}`}
+              onChange={(e) => {
+                const [m, y] = e.target.value.split('-').map(Number);
+                setSelectedMonth(m);
+                setSelectedYear(y);
+              }}
+              className="text-xl sm:text-2xl font-black bg-transparent border-none p-0 pr-8 m-0 focus:ring-0 text-foreground cursor-pointer capitalize font-sans tracking-tight focus:outline-none hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+            >
+              {monthOptions.map(opt => (
+                <option key={`${opt.month}-${opt.year}`} value={`${opt.month}-${opt.year}`} className="bg-white dark:bg-gray-800 text-foreground text-sm">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Mic Button */}
@@ -431,7 +442,7 @@ export default function Dashboard() {
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-200 dark:text-indigo-400 mb-1.5 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Dinero Disponible
           </p>
-          <p className="text-2xl font-black tracking-tight leading-none">${stats.totalBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black tracking-tight leading-none">{formatAmount(stats.totalBalance)}</p>
         </div>
         
         <div className="glass rounded-3xl p-5 shadow-sm border border-border relative overflow-hidden glass-glow">
@@ -439,7 +450,7 @@ export default function Dashboard() {
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-foreground/45 mb-1.5 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Gastado este mes
           </p>
-          <p className="text-2xl font-black tracking-tight leading-none text-rose-500 dark:text-rose-400">${stats.expense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black tracking-tight leading-none text-rose-500 dark:text-rose-400">{formatAmount(stats.expense)}</p>
         </div>
       </div>
 
@@ -499,7 +510,7 @@ export default function Dashboard() {
               >
                 <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 truncate mb-1">{acc.nombre}</p>
                 <p className={`text-base font-black tracking-tight ${balance >= 0 ? 'text-foreground' : 'text-rose-500 dark:text-rose-400'}`}>
-                  ${Math.abs(balance).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  {formatAmount(balance)}
                 </p>
               </div>
             );
@@ -543,7 +554,7 @@ export default function Dashboard() {
                   <div className="min-w-0">
                     <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
                     <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider mt-0.5">
-                      {tx.categoria}
+                      {tx.categoria} {tx.subcategoria ? `➔ ${tx.subcategoria}` : ''}
                       {tx.tipo === 'transferencia' ? (
                         ` • ${accounts.find(a => a.id === tx.fromId)?.nombre || 'Origen'} ➔ ${accounts.find(a => a.id === tx.toId)?.nombre || 'Destino'}`
                       ) : (
@@ -555,7 +566,7 @@ export default function Dashboard() {
               
               <div className="flex items-center gap-2">
                 <p className={`text-sm font-black ${tx.tipo === 'ingreso' ? 'text-emerald-500' : 'text-foreground'}`}>
-                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  {tx.tipo === 'ingreso' ? '+' : '-'}{formatAmount(tx.monto)}
                 </p>
                 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">

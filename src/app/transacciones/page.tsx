@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { Transaction, useUserConfig, useAccounts } from "@/hooks/useFirestore";
-import { Search, Trash2, Plus, Minus, Repeat, Settings } from "lucide-react";
+import { Search, Trash2, Plus, Minus, Repeat, Settings, Menu } from "lucide-react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, deleteDoc, updateDoc, increment, collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import EditTransactionModal from "@/components/EditTransactionModal";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useApp } from "@/context/AppContext";
 
 export default function TransaccionesPage() {
+  const { formatAmount, openDrawer } = useApp();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const { accounts } = useAccounts();
@@ -90,10 +92,19 @@ export default function TransaccionesPage() {
   return (
     <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between py-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Historial Financiero</p>
-          <h1 className="text-3xl font-black tracking-tight text-foreground">Transacciones</h1>
+      <div className="flex items-center justify-between py-2 border-b border-border/20">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={openDrawer}
+            className="md:hidden p-2 hover:bg-accent/40 rounded-xl transition-colors cursor-pointer"
+            title="Abrir Menú"
+          >
+            <Menu size={20} className="opacity-70 text-foreground" />
+          </button>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Historial Financiero</p>
+            <h1 className="text-3xl font-black tracking-tight text-foreground">Transacciones</h1>
+          </div>
         </div>
         <button 
           onClick={() => router.push('/ajustes')}
@@ -141,7 +152,7 @@ export default function TransaccionesPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
                   <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider mt-0.5">
-                    {tx.categoria}
+                    {tx.categoria} {tx.subcategoria ? `➔ ${tx.subcategoria}` : ''}
                     {tx.tipo === 'transferencia' ? (
                       ` • ${accounts.find(a => a.id === tx.fromId)?.nombre || 'Origen'} ➔ ${accounts.find(a => a.id === tx.toId)?.nombre || 'Destino'}`
                     ) : (
@@ -155,7 +166,7 @@ export default function TransaccionesPage() {
                   tx.tipo === 'ingreso' ? 'text-emerald-500' : 
                   tx.tipo === 'transferencia' ? 'text-indigo-500 dark:text-indigo-400' : 'text-foreground'
                 }`}>
-                  {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  {tx.tipo === 'ingreso' ? '+' : '-'}{formatAmount(tx.monto)}
                 </p>
                 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-250">

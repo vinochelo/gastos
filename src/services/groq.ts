@@ -87,6 +87,7 @@ Estructura exacta:
       "monto": número (monto nuevo o detectado, usa decimales con punto: 0.35),
       "montoAnterior": número (monto incorrecto anterior que se está corrigiendo o editando, ej: "era 50 no 70" -> monto: 50, montoAnterior: 70),
       "categoria": "categoría nueva o detectada",
+      "subcategoria": "subcategoría limpia del gasto en singular (ej: 'Taxi', 'Supermercado', 'Cafetería', 'Suscripción', 'Farmacia', 'Restaurante', 'Golosinas') si corresponde a alguna subcategoría específica",
       "categoriaAnterior": "categoría incorrecta anterior que se quiere cambiar (ej: 'era comida no cine' -> categoria: 'Comida', categoriaAnterior: 'Cine')",
       "cuenta": "nombre de la cuenta nueva o detectada",
       "cuentaAnterior": "nombre de la cuenta incorrecta anterior que se quiere cambiar (ej: 'era efectivo no banco' -> cuenta: 'Efectivo', cuentaAnterior: 'Cuenta Bancaria')",

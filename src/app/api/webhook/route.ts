@@ -535,7 +535,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         const descripcion = item.descripcion || item.categoria || userInput;
         batch.set(adminDb.collection("transactions").doc(), {
           userId, monto, tipo: item.tipo || "gasto", accountId: accountDoc.id,
-          categoria: item.categoria || "Varios", descripcion: descripcion,
+          categoria: item.categoria || "Varios", subcategoria: item.subcategoria || "", descripcion: descripcion,
           timestamp, createdAt: admin.firestore.FieldValue.serverTimestamp(), fuente: "telegram"
         });
         batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(mult * monto) });
@@ -788,6 +788,7 @@ bot.on("callback_query", async (ctx) => {
         tipo: "gasto",
         accountId: accountDoc.id,
         categoria: data.categoria || "Varios",
+        subcategoria: data.subcategoria || "",
         descripcion: data.descripcion || "Factura",
         timestamp,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),

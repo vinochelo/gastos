@@ -18,6 +18,7 @@ interface AddTransactionModalProps {
     monto?: number;
     descripcion?: string;
     categoria?: string;
+    subcategoria?: string;
     cuenta?: string;
     tipo?: "gasto" | "ingreso";
   } | null;
@@ -31,9 +32,20 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [subcategoria, setSubcategoria] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
+    "Comida": ["Supermercado", "Restaurante", "Cafetería", "Golosinas"],
+    "Transporte": ["Larga distancia", "Taxi", "Transporte público", "Vehículo"],
+    "Servicios": ["Luz/Agua", "Internet/Plan", "Suscripciones"],
+    "Entretenimiento": ["Cine/Teatro", "Conciertos", "Videojuegos"],
+    "Salud": ["Farmacia", "Consulta médica", "Seguro médico"],
+    "Educación": ["Matrícula", "Libros/Cursos", "Útiles escolares"],
+    "Otros": ["Varios"]
+  };
 
   // Recording voice states
   const [isRecording, setIsRecording] = useState(false);
@@ -112,15 +124,18 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         }
 
         const targetCategories = (result.tipo || type) === "gasto" ? expenseCategories : incomeCategories;
-        if (result.categoria) {
-          const matchedCat = targetCategories.find(c => 
-            c.toLowerCase().includes(result.categoria!.toLowerCase()) || 
-            result.categoria!.toLowerCase().includes(c.toLowerCase())
-          );
-          if (matchedCat) setCategory(matchedCat);
-        }
-        
-        showToastLocal("Campos completados por voz!");
+          if (result.categoria) {
+            const matchedCat = targetCategories.find(c => 
+              c.toLowerCase().includes(result.categoria!.toLowerCase()) || 
+              result.categoria!.toLowerCase().includes(c.toLowerCase())
+            );
+            if (matchedCat) {
+              setCategory(matchedCat);
+              setSubcategoria(result.subcategoria || "");
+            }
+          }
+          
+          showToastLocal("Campos completados por voz!");
       } else {
         setError("La IA no pudo clasificar este audio. Transcripción: \"" + data.text + "\"");
       }
@@ -163,9 +178,12 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         const targetCategories = targetType === "gasto" ? expenseCategories : incomeCategories;
         if (initialData.categoria) {
           const matchedCat = targetCategories.find(c => c.toLowerCase().includes(initialData.categoria!.toLowerCase()) || initialData.categoria!.toLowerCase().includes(c.toLowerCase()));
-          setCategory(matchedCat || (targetCategories.length > 0 ? targetCategories[0] : ""));
+          const finalCat = matchedCat || (targetCategories.length > 0 ? targetCategories[0] : "");
+          setCategory(finalCat);
+          setSubcategoria(initialData.subcategoria || "");
         } else {
           setCategory(targetCategories.length > 0 ? targetCategories[0] : "");
+          setSubcategoria("");
         }
       } else {
         setAmount("");
@@ -174,6 +192,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         const efectivoAcc = accounts.find(a => a.nombre.toLowerCase() === "efectivo");
         setAccountId(efectivoAcc ? efectivoAcc.id : "");
         setCategory(categories.length > 0 ? categories[0] : "");
+        setSubcategoria("");
       }
       setDate(new Date().toISOString().split('T')[0]);
       setError(null);
@@ -212,6 +231,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         monto,
         descripcion: description || category,
         categoria: category,
+        subcategoria: subcategoria || "",
         accountId,
         tipo: type,
         timestamp: Timestamp.fromDate(new Date(date + "T12:00:00")),
@@ -227,6 +247,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       setAmount("");
       setDescription("");
       setCategory("");
+      setSubcategoria("");
       setAccountId("");
       onClose();
     } catch (err) {
@@ -409,6 +430,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
                         type="button"
                         onClick={() => {
                           setCategory(c);
+                          setSubcategoria("");
                           setIsCategoryDropdownOpen(false);
                         }}
                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold text-foreground hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors cursor-pointer ${
@@ -441,6 +463,32 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
               </select>
             </div>
           </div>
+
+          {/* Subcategory horizontal sliding tag selector */}
+          {category && (config?.subcategories?.[category] || DEFAULT_SUBCATEGORIES[category] || []).length > 0 && (
+            <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Subcategoría (Menú)</label>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {(config?.subcategories?.[category] || DEFAULT_SUBCATEGORIES[category] || []).map((sc) => {
+                  const isSelected = sc === subcategoria;
+                  return (
+                    <button
+                      key={sc}
+                      type="button"
+                      onClick={() => setSubcategoria(isSelected ? "" : sc)}
+                      className={`flex-shrink-0 px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-tight transition-all border cursor-pointer ${
+                        isSelected 
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" 
+                          : "bg-gray-50 border-gray-100 dark:bg-gray-900 dark:border-gray-800 text-foreground/70 hover:text-foreground"
+                      }`}
+                    >
+                      {sc}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-950/30 p-3 rounded-xl">

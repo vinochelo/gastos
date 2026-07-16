@@ -22,10 +22,21 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
   const [description, setDescription] = useState(transaction.descripcion || "");
   const [category, setCategory] = useState(transaction.categoria);
   const [accountId, setAccountId] = useState(transaction.accountId || "");
+  const [subcategoria, setSubcategoria] = useState(transaction.subcategoria || "");
   const [fromId, setFromId] = useState(transaction.fromId || "");
   const [toId, setToId] = useState(transaction.toId || "");
   const [loading, setLoading] = useState(false);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+
+  const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
+    "Comida": ["Supermercado", "Restaurante", "Cafetería", "Golosinas"],
+    "Transporte": ["Larga distancia", "Taxi", "Transporte público", "Vehículo"],
+    "Servicios": ["Luz/Agua", "Internet/Plan", "Suscripciones"],
+    "Entretenimiento": ["Cine/Teatro", "Conciertos", "Videojuegos"],
+    "Salud": ["Farmacia", "Consulta médica", "Seguro médico"],
+    "Educación": ["Matrícula", "Libros/Cursos", "Útiles escolares"],
+    "Otros": ["Varios"]
+  };
 
   const isTransfer = transaction.tipo === "transferencia";
 
@@ -37,6 +48,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
     setAmount(transaction.monto.toString());
     setDescription(transaction.descripcion || "");
     setCategory(transaction.categoria);
+    setSubcategoria(transaction.subcategoria || "");
     setAccountId(transaction.accountId || "");
     setFromId(transaction.fromId || "");
     setToId(transaction.toId || "");
@@ -99,6 +111,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
           monto: newMonto,
           descripcion: description,
           categoria: category,
+          subcategoria: subcategoria || "",
         };
         
         if (accountId !== transaction.accountId) {
@@ -232,6 +245,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
                           type="button"
                           onClick={() => {
                             setCategory(c);
+                            setSubcategoria("");
                             setIsCategoryDropdownOpen(false);
                           }}
                           className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold text-foreground hover:bg-gray-50 dark:hover:bg-gray-700/40 text-left transition-colors cursor-pointer ${
@@ -261,6 +275,32 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
                   <option value="">Seleccionar...</option>
                   {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nombre}</option>)}
                 </select>
+              </div>
+            </div>
+          )}
+
+          {/* Subcategory horizontal sliding tag selector */}
+          {!isTransfer && category && (config?.subcategories?.[category] || DEFAULT_SUBCATEGORIES[category] || []).length > 0 && (
+            <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-1">Subcategoría (Menú)</label>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {(config?.subcategories?.[category] || DEFAULT_SUBCATEGORIES[category] || []).map((sc) => {
+                  const isSelected = sc === subcategoria;
+                  return (
+                    <button
+                      key={sc}
+                      type="button"
+                      onClick={() => setSubcategoria(isSelected ? "" : sc)}
+                      className={`flex-shrink-0 px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-tight transition-all border cursor-pointer ${
+                        isSelected 
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" 
+                          : "bg-gray-50 border-gray-100 dark:bg-gray-900 dark:border-gray-800 text-foreground/70 hover:text-foreground"
+                      }`}
+                    >
+                      {sc}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

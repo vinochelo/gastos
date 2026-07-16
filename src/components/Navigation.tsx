@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, List, Wallet, Settings } from "lucide-react";
+import { Home, List, Wallet, Settings, TrendingUp, DollarSign, Target } from "lucide-react";
 
 export function DesktopNavigation() {
   const pathname = usePathname();
@@ -12,6 +12,9 @@ export function DesktopNavigation() {
       <DesktopNavItem href="/" label="Inicio" icon={Home} active={pathname === "/"} />
       <DesktopNavItem href="/transacciones" label="Transacciones" icon={List} active={pathname.startsWith("/transacciones")} />
       <DesktopNavItem href="/cuentas" label="Cuentas" icon={Wallet} active={pathname.startsWith("/cuentas")} />
+      <DesktopNavItem href="/presupuestos" label="Presupuestos" icon={TrendingUp} active={pathname.startsWith("/presupuestos")} />
+      <DesktopNavItem href="/deudas" label="Deudas" icon={DollarSign} active={pathname.startsWith("/deudas")} />
+      <DesktopNavItem href="/metas" label="Metas / Objetivos" icon={Target} active={pathname.startsWith("/metas")} />
       <DesktopNavItem href="/ajustes" label="Ajustes" icon={Settings} active={pathname.startsWith("/ajustes")} />
     </nav>
   );

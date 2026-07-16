@@ -18,6 +18,7 @@ export interface Transaction {
   monto: number;
   tipo: "gasto" | "ingreso" | "transferencia";
   categoria: string;
+  subcategoria?: string;
   descripcion?: string;
   accountId?: string;
   fromId?: string;
@@ -49,6 +50,12 @@ export function useAccounts() {
       );
       unsubscribeFirestore = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
+        data.sort((a, b) => {
+          const orderA = (a as any).orden ?? 0;
+          const orderB = (b as any).orden ?? 0;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.nombre.localeCompare(b.nombre, 'es');
+        });
         setAccounts(data);
         setLoading(false);
       });
@@ -68,14 +75,8 @@ export function useRecentTransactions(limitCount = 10) {
   const getTimestampValue = (ts: unknown): number => {
     if (!ts) return 0;
     if (ts instanceof Date) return ts.getTime();
-    if (typeof ts === 'object' && 'toDate' in ts && typeof (ts as { toDate: () => Date }).toDate === 'function') {
-      return (ts as { toDate: () => Date }).toDate().getTime();
-    }
-    if (typeof ts === 'object' && ts !== null) {
-      const tsObj = ts as { seconds?: number; nanoseconds?: number };
-      if (tsObj.seconds) {
-        return tsObj.seconds * 1000 + (tsObj.nanoseconds || 0) / 1000000;
-      }
+    if (ts && typeof ts === "object" && "seconds" in ts) {
+      return (ts as { seconds: number }).seconds * 1000;
     }
     return 0;
   };
@@ -126,6 +127,7 @@ export interface UserConfig {
   incomeCategories?: string[];
   categories?: string[];
   categoryIcons?: Record<string, string>;
+  subcategories?: Record<string, string[]>;
 }
 
 export function useUserConfig() {

@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useAccounts, Account } from "@/hooks/useFirestore";
-import { Plus, Wallet, CreditCard, Banknote, MoreVertical, LucideIcon, PiggyBank, X, Trash2 } from "lucide-react";
+import { Plus, Wallet, CreditCard, Banknote, MoreVertical, LucideIcon, PiggyBank, X, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import AccountIcon from "@/components/AccountIcon";
-import { db, auth } from "@/lib/firebase";
 import { addDoc, collection, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import { useApp } from "@/context/AppContext";
 
 interface AccountConfig {
   icon: LucideIcon;
@@ -26,6 +27,30 @@ const ACCOUNT_TYPES: Record<string, AccountConfig> = {
 
 export default function CuentasPage() {
   const { accounts, loading } = useAccounts();
+  const { formatAmount } = useApp();
+  
+  const moveAccount = async (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= accounts.length) return;
+
+    const acc1 = accounts[index];
+    const acc2 = accounts[newIndex];
+
+    // Assign order values
+    const order1 = newIndex;
+    const order2 = index;
+
+    // Update both documents in Firestore
+    await updateDoc(doc(db, "accounts", acc1.id), { orden: order1 });
+    await updateDoc(doc(db, "accounts", acc2.id), { orden: order2 });
+    
+    // Also, initialize all other accounts orders if they don't have them, to keep it consistent
+    accounts.forEach(async (acc, idx) => {
+      if (idx !== index && idx !== newIndex && (acc as any).orden === undefined) {
+        await updateDoc(doc(db, "accounts", acc.id), { orden: idx });
+      }
+    });
+  };
   
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -162,14 +187,32 @@ export default function CuentasPage() {
                 </div>
               </div>
               
-              <div className="flex flex-col items-end relative z-10">
-                 <p className="text-xl font-black text-foreground tracking-tight">${(acc.saldo || 0).toLocaleString('es-EC', { minimumFractionDigits: 2 })}</p>
-                 <button 
-                  onClick={() => handleStartEdit(acc)}
-                  className="opacity-40 md:opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg cursor-pointer text-foreground animate-in duration-200"
-                 >
-                    <MoreVertical size={14} />
-                 </button>
+              <div className="flex flex-col items-end relative z-10 gap-1">
+                 <p className="text-xl font-black text-foreground tracking-tight">{formatAmount(acc.saldo || 0)}</p>
+                 <div className="flex items-center gap-1 opacity-60 md:opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity">
+                   <button 
+                     onClick={() => moveAccount(accounts.indexOf(acc), 'up')}
+                     disabled={accounts.indexOf(acc) === 0}
+                     title="Subir"
+                     className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-foreground cursor-pointer disabled:opacity-20"
+                   >
+                     <ChevronUp size={14} />
+                   </button>
+                   <button 
+                     onClick={() => moveAccount(accounts.indexOf(acc), 'down')}
+                     disabled={accounts.indexOf(acc) === accounts.length - 1}
+                     title="Bajar"
+                     className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-foreground cursor-pointer disabled:opacity-20"
+                   >
+                     <ChevronDown size={14} />
+                   </button>
+                   <button 
+                    onClick={() => handleStartEdit(acc)}
+                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg cursor-pointer text-foreground"
+                   >
+                      <MoreVertical size={14} />
+                   </button>
+                 </div>
               </div>
             </div>
           );
