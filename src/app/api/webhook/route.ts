@@ -278,12 +278,23 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
             const userDoc = await adminDb.collection("users").doc(userId).get();
             const userName = userDoc.data()?.name || "Usuario";
 
+            const recentTransactionsList = transSnap.docs.map(doc => {
+              const data = doc.data();
+              return {
+                tipo: data.tipo,
+                monto: data.monto || 0,
+                categoria: data.categoria || "Otro",
+                descripcion: data.descripcion || ""
+              };
+            });
+
             const aiAnalysis = await generateFinancialAnalysis(
               incomeTotal,
               expenseTotal,
               balancesList,
               categoryExpenses,
-              userName
+              userName,
+              recentTransactionsList
             );
             
             mensaje += aiAnalysis;

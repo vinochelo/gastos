@@ -49,17 +49,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Fetch user name for personalization
+    // 3. Extract monthly transactions detail list for AI context
+    const recentTransactionsList = transSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        tipo: data.tipo,
+        monto: data.monto || 0,
+        categoria: data.categoria || "Otro",
+        descripcion: data.descripcion || ""
+      };
+    });
+
+    // 4. Fetch user name for personalization
     const userDoc = await adminDb.collection("users").doc(userId).get();
     const userName = userDoc.data()?.name || "Usuario";
 
-    // 4. Generate AI financial analysis
+    // 5. Generate AI financial analysis
     const analysis = await generateFinancialAnalysis(
       incomeTotal,
       expenseTotal,
       balancesList,
       categoryExpenses,
-      userName
+      userName,
+      recentTransactionsList
     );
 
     return NextResponse.json({

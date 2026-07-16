@@ -196,18 +196,29 @@ export async function generateFinancialAnalysis(
   expenseTotal: number,
   balances: { nombre: string; saldo: number }[],
   categoryExpenses: Record<string, number>,
-  userName: string = "Usuario"
+  userName: string = "Usuario",
+  recentTransactions: { tipo: string; monto: number; categoria: string; descripcion?: string }[] = []
 ): Promise<string> {
   try {
     const dateStr = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    const currentDateStr = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const currentDay = new Date().getDate();
+
     const balanceText = (balances || []).map(b => `${b.nombre}: $${Number(b.saldo || 0).toFixed(2)}`).join("\n");
     const categoryText = Object.entries(categoryExpenses || {})
       .map(([cat, val]) => `- ${cat}: $${Number(val || 0).toFixed(2)}`)
       .join("\n");
 
+    const txListText = (recentTransactions || [])
+      .map(t => `- [${t.tipo.toUpperCase()}] ${t.categoria}: $${Number(t.monto).toFixed(2)}${t.descripcion ? ` (${t.descripcion})` : ""}`)
+      .join("\n");
+
     const prompt = `
 Eres un asesor financiero personal experto en finanzas personales para latinoamérica, llamado GESTOR.AI.
 Analiza la situación financiera de ${userName} para el mes de ${dateStr} con los siguientes datos reales:
+
+**DATOS TEMPORALES:**
+- Fecha de hoy: ${currentDateStr} (Día ${currentDay} del mes)
 
 **DATOS FINANCIEROS:**
 - Ingresos Totales de este mes: $${Number(incomeTotal || 0).toFixed(2)}
@@ -218,11 +229,15 @@ ${balanceText}
 **DESGLOSE DE GASTOS POR CATEGORÍA:**
 ${categoryText || "No hay gastos registrados este mes."}
 
+**LISTADO DETALLADO DE TRANSACCIONES DEL MES (Analiza las descripciones/notas para mayor contexto):**
+${txListText || "No hay transacciones registradas este mes."}
+
 **INSTRUCCIONES PARA TU ANÁLISIS:**
 1. **Tono**: Empático, profesional, motivador y claro. Evita tecnicismos innecesarios.
 2. **Estructura**:
    - **Resumen del Estado de Salud Financiera**: ¿Cómo se ve su mes? (¿Está ahorrando, al límite, o gastando de más?). Calcula su tasa de ahorro.
-   - **Categorías de Alerta**: Identifica la categoría donde más ha gastado y evalúa si es un gasto justificable o preocupante.
+     *NOTA TEMPORAL IMPORTANTE*: Dado que estamos a mediados de mes (Día ${currentDay}), advierte claramente al usuario que el balance positivo actual no es un ahorro consolidado final de mes, sino el presupuesto/superávit temporal disponible para afrontar los gastos del resto de días del mes. Aconséjale administrar con cautela este saldo positivo.
+   - **Categorías de Alerta**: Identifica la categoría donde más ha gastado. **Lee el listado detallado de transacciones y sus descripciones** para entender de qué se trata exactamente y evaluar si es justificable o preocupante (por ejemplo, si la categoría es el nombre de una persona pero la descripción aclara que es la cuota de la universidad o matrícula, reconócelo como un gasto educativo o inversión esencial).
    - **Recomendaciones Prácticas (3 Puntos)**: Consejos específicos y realistas para reducir gastos en sus categorías críticas o mejorar sus cuentas.
    - **Frase Corta Motivadora**: Una línea corta al final que inspire control financiero.
 3. **Criterio de Gastos Fijos vs. Variables (Crítico)**:
