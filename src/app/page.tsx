@@ -13,7 +13,7 @@ import {
   useGoals,
   Transaction,
 } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, Sparkles, X, Menu, Send, TrendingUp, DollarSign, Target } from "lucide-react";
+import { Plus, ArrowRightLeft, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, Sparkles, X, Menu, Send, TrendingUp, DollarSign, Target, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { authFetch } from "@/lib/api";
 import { deleteTransactionAtomic } from "@/lib/transactions";
+import { evaluateBudgets, getBudgetStatusLabel, normalizeCategoryKey } from "@/lib/budgets";
 import { useApp } from "@/context/AppContext";
 import SplashLoading from "@/components/SplashLoading";
 
@@ -238,6 +239,17 @@ export default function Dashboard() {
 
     return { income, expense, totalBalance };
   }, [transactions, accounts]);
+
+  const budgetEvaluation = useMemo(() => {
+    const spentMap: Record<string, number> = {};
+    transactions.forEach(tx => {
+      if (tx.tipo === 'gasto') {
+        const key = normalizeCategoryKey(tx.categoria);
+        spentMap[key] = (spentMap[key] || 0) + Number(tx.monto || 0);
+      }
+    });
+    return evaluateBudgets(budgets, spentMap, selectedYear, selectedMonth);
+  }, [budgets, transactions, selectedYear, selectedMonth]);
 
   const moduleSummary = useMemo(() => {
     const activeBudgets = budgets.length;
@@ -540,19 +552,48 @@ export default function Dashboard() {
       <div className="grid grid-cols-3 gap-3">
         <button
           onClick={() => router.push('/presupuestos')}
-          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-indigo-500/40 transition-all cursor-pointer glass-glow"
+          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-primary/40 transition-all cursor-pointer glass-glow"
         >
           <div className="flex items-center justify-between mb-1.5">
-            <TrendingUp size={15} className="text-indigo-500" />
+            <TrendingUp
+              size={15}
+              className={
+                moduleSummary.activeBudgets === 0
+                  ? "text-primary"
+                  : budgetEvaluation.summary.status === "exceeded"
+                  ? "text-rose-500"
+                  : budgetEvaluation.summary.status === "warning"
+                  ? "text-amber-500"
+                  : "text-emerald-500"
+              }
+            />
             <ChevronRight size={13} className="opacity-35" />
           </div>
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/45">Presupuestos</p>
-          <p className="text-sm font-black text-foreground mt-0.5">{moduleSummary.activeBudgets} activos</p>
+          <p
+            className={`text-sm font-black mt-0.5 truncate ${
+              moduleSummary.activeBudgets === 0
+                ? "text-foreground"
+                : budgetEvaluation.summary.status === "exceeded"
+                ? "text-rose-500"
+                : budgetEvaluation.summary.status === "warning"
+                ? "text-amber-500"
+                : "text-emerald-600 dark:text-emerald-400"
+            }`}
+          >
+            {moduleSummary.activeBudgets === 0
+              ? "Sin definir"
+              : budgetEvaluation.summary.exceededCount > 0
+              ? `${budgetEvaluation.summary.exceededCount} excedido(s)`
+              : budgetEvaluation.summary.warningCount > 0
+              ? `${budgetEvaluation.summary.warningCount} cerca límite`
+              : `Dentro · ${budgetEvaluation.summary.pctRaw}%`}
+          </p>
         </button>
 
         <button
           onClick={() => router.push('/deudas')}
-          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-indigo-500/40 transition-all cursor-pointer glass-glow"
+          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-primary/40 transition-all cursor-pointer glass-glow"
         >
           <div className="flex items-center justify-between mb-1.5">
             <DollarSign size={15} className="text-rose-500" />
@@ -564,7 +605,7 @@ export default function Dashboard() {
 
         <button
           onClick={() => router.push('/metas')}
-          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-indigo-500/40 transition-all cursor-pointer glass-glow"
+          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-primary/40 transition-all cursor-pointer glass-glow"
         >
           <div className="flex items-center justify-between mb-1.5">
             <Target size={15} className="text-emerald-500" />
@@ -574,6 +615,72 @@ export default function Dashboard() {
           <p className="text-sm font-black text-foreground mt-0.5 truncate">{formatAmount(moduleSummary.totalSaved)}</p>
         </button>
       </div>
+
+      {/* Budget Health Indicator Card */}
+      {budgets.length > 0 && (() => {
+        const s = budgetEvaluation.summary;
+        const StatusIcon =
+          s.status === "exceeded"
+            ? AlertCircle
+            : s.status === "warning"
+            ? AlertTriangle
+            : CheckCircle;
+        const barColor =
+          s.status === "exceeded"
+            ? "bg-rose-500"
+            : s.status === "warning"
+            ? "bg-amber-500"
+            : "bg-emerald-500";
+        const badgeStyle =
+          s.status === "exceeded"
+            ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+            : s.status === "warning"
+            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+
+        return (
+          <button
+            onClick={() => router.push('/presupuestos')}
+            className="w-full text-left glass rounded-2xl p-4 border border-border hover:border-primary/40 transition-all cursor-pointer space-y-2.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${badgeStyle}`}>
+                  <StatusIcon size={12} />
+                  {getBudgetStatusLabel(s.status)}
+                </span>
+                <span className="text-xs font-bold text-foreground/60 truncate">
+                  {formatAmount(s.totalSpent)} / {formatAmount(s.totalBudgeted)}
+                </span>
+              </div>
+              <span className="text-xs font-black text-foreground/75 shrink-0">{s.pctRaw}%</span>
+            </div>
+
+            <div className="relative w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                style={{ width: `${s.barPct}%` }}
+              />
+              {s.pace.isCurrentMonth && (
+                <div
+                  title={`Ritmo del mes: ${s.pace.expectedPct}%`}
+                  className="absolute top-0 bottom-0 w-0.5 bg-foreground/50 z-10"
+                  style={{ left: `${s.pace.expectedPct}%` }}
+                />
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] font-semibold text-foreground/55">
+              <span>
+                {s.remaining >= 0
+                  ? `Te quedan ${formatAmount(s.remaining)} dentro del presupuesto`
+                  : `Excedido por ${formatAmount(Math.abs(s.remaining))}`}
+              </span>
+              <span className="text-primary font-bold">Ver detalle →</span>
+            </div>
+          </button>
+        );
+      })()}
 
       {/* Cuentas Section */}
       <div>

@@ -163,7 +163,9 @@ El usuario te envía un mensaje sobre sus finanzas personales. Tu trabajo es ent
 
   7. **CONSULTAR GASTOS**: "cuánto gasté esta semana", "qué gasté en comer", "mis gastos del mes"
 
-  8. **ENLACE WEB**: Si el usuario pide el link, url, página web, aplicación o cómo acceder, responde con tipo "enlace_web"
+  8. **CONSULTAR PRESUPUESTOS**: "cómo voy con mi presupuesto", "mis presupuestos", "estoy dentro del presupuesto", "cuánto me queda de presupuesto" -> usa tipo "consulta_presupuesto" (si menciona categoría, inclúyela en "categoria")
+
+  9. **ENLACE WEB**: Si el usuario pide el link, url, página web, aplicación o cómo acceder, responde con tipo "enlace_web"
 
 **CATEGORÍAS DEL USUARIO:**
 Gastos: ${expCats.join(", ")}
@@ -189,7 +191,7 @@ Estructura exacta:
 {
   "items": [
     {
-      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "ayuda" | "enlace_web",
+      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "consulta_presupuesto" | "ayuda" | "enlace_web",
       "monto": número (monto nuevo o detectado, usa decimales con punto: 0.35),
       "montoAnterior": número (monto incorrecto anterior que se está corrigiendo o editando, ej: "era 50 no 70" -> monto: 50, montoAnterior: 70),
       "categoria": "categoría nueva o detectada",
@@ -257,6 +259,7 @@ Puedes enviarme notas de voz, fotos de facturas o texto. Aquí tienes los comand
 • *Saldos de cuentas:* "mi saldo", "cuánto tengo en efectivo", "balances"
 • *Gastos generales del mes:* "mis gastos", "cuánto he gastado este mes", "gastos del mes"
 • *Gastos por categoría:* "cuánto gasté en comida", "gastos de viaje este mes", "qué gasté en taxi"
+• *Presupuestos:* "mis presupuestos", "estoy dentro del presupuesto"
 
 🧠 *ASESORÍA IA (GESTOR.AI):*
 • "analiza mis finanzas", "dame consejos", "recomiéndame qué hacer"

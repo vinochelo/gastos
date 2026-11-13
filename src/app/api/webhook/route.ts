@@ -4,6 +4,12 @@ import admin from "firebase-admin";
 import { adminDb } from "@/lib/firebase-admin";
 import { transcribeAudio, parseTransaction, getHelpMessage, editPendingWithAI, generateFinancialAnalysis } from "@/services/groq";
 import { analyzeReceipt } from "@/services/ai";
+import {
+  evaluateBudgets,
+  getBudgetStatusLabel,
+  normalizeCategoryKey,
+  BudgetInput,
+} from "@/lib/budgets";
 import axios from "axios";
 import fs from "fs";
 import path from "path";
@@ -128,6 +134,75 @@ function findAccount(
   return null;
 }
 
+async function getEvaluatedUserBudgets(
+  userId: string,
+  extraExpenseByNormalizedCat: Record<string, number> = {}
+) {
+  const budgetsSnap = await adminDb
+    .collection("budgets")
+    .where("userId", "==", userId)
+    .get();
+
+  const budgets: BudgetInput[] = budgetsSnap.docs.map((d) => ({
+    id: d.id,
+    categoria: String(d.data().categoria || "Otros"),
+    monto: Number(d.data().monto || 0),
+  }));
+
+  if (budgets.length === 0) return null;
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+
+  const transSnap = await adminDb
+    .collection("transactions")
+    .where("userId", "==", userId)
+    .where("tipo", "==", "gasto")
+    .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
+    .where("timestamp", "<", admin.firestore.Timestamp.fromDate(startOfNextMonth))
+    .get();
+
+  const spentMap: Record<string, number> = { ...extraExpenseByNormalizedCat };
+  for (const doc of transSnap.docs) {
+    const data = doc.data();
+    const key = normalizeCategoryKey(data.categoria);
+    spentMap[key] = (spentMap[key] || 0) + Number(data.monto || 0);
+  }
+
+  return evaluateBudgets(budgets, spentMap);
+}
+
+function getStatusEmoji(status: "ok" | "warning" | "exceeded"): string {
+  if (status === "exceeded") return "🚨";
+  if (status === "warning") return "⚠️";
+  return "✅";
+}
+
+function formatBudgetReportMessage(evaluated: NonNullable<Awaited<ReturnType<typeof getEvaluatedUserBudgets>>>): string {
+  const { summary, items } = evaluated;
+  const emoji = getStatusEmoji(summary.status);
+  let msg = `📊 *ESTADO DE PRESUPUESTOS (MES ACTUAL):*\n`;
+  msg += `${emoji} *${getBudgetStatusLabel(summary.status)}* (${summary.pctRaw}%)\n`;
+  msg += `• Gastado: $${summary.totalSpent.toFixed(2)} de $${summary.totalBudgeted.toFixed(2)}\n`;
+  msg +=
+    summary.remaining >= 0
+      ? `• Disponible: $${summary.remaining.toFixed(2)}\n`
+      : `• Excedido por: $${Math.abs(summary.remaining).toFixed(2)}\n`;
+  msg += `• Ritmo del mes: Día ${summary.pace.dayOfMonth}/${summary.pace.daysInMonth} (${summary.pace.expectedPct}%)\n\n`;
+
+  for (const item of items) {
+    const itemEmoji = getStatusEmoji(item.status);
+    const diffText =
+      item.remaining >= 0
+        ? `quedan $${item.remaining.toFixed(2)}`
+        : `excedido +$${Math.abs(item.remaining).toFixed(2)}`;
+    msg += `${itemEmoji} *${item.categoria}:* $${item.spent.toFixed(2)} / $${item.limit.toFixed(2)} (${item.pctRaw}% · ${diffText})\n`;
+  }
+
+  return msg;
+}
+
 async function handlePendingEdit(ctx: TelegramContext, userId: string, pendingId: string, userInput: string) {
   await safeReply(ctx, "✏️ Aplicando cambio...");
   const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
@@ -194,6 +269,7 @@ async function processIncomingTransaction(ctx: TelegramContext, userId: string, 
 
     const batch = adminDb.batch();
     const results: string[] = [];
+    const addedExpensesByCat: Record<string, number> = {};
 
     for (const item of result.items) {
       if (item.tipo === "ayuda") {
@@ -371,6 +447,33 @@ async function processIncomingTransaction(ctx: TelegramContext, userId: string, 
           }
         }
         await safeReply(ctx, mensaje, { parse_mode: "Markdown" });
+        return;
+      } else if (item.tipo === "consulta_presupuesto") {
+        const evaluated = await getEvaluatedUserBudgets(userId);
+        if (!evaluated) {
+          await safeReply(ctx, "📊 Aún no tienes presupuestos mensuales configurados. Créalos en la sección *Presupuestos* de la app.", { parse_mode: "Markdown" });
+          return;
+        }
+        if (item.categoria) {
+          const targetKey = normalizeCategoryKey(item.categoria);
+          const matchItem = evaluated.items.find(
+            (b) => normalizeCategoryKey(b.categoria) === targetKey
+          );
+          if (matchItem) {
+            const emoji = getStatusEmoji(matchItem.status);
+            const diffText =
+              matchItem.remaining >= 0
+                ? `Disponible: $${matchItem.remaining.toFixed(2)}`
+                : `Excedido por: $${Math.abs(matchItem.remaining).toFixed(2)}`;
+            await safeReply(
+              ctx,
+              `${emoji} *Presupuesto ${matchItem.categoria}:* ${getBudgetStatusLabel(matchItem.status)}\n• Gastado: $${matchItem.spent.toFixed(2)} / $${matchItem.limit.toFixed(2)} (${matchItem.pctRaw}%)\n• ${diffText}`,
+              { parse_mode: "Markdown" }
+            );
+            return;
+          }
+        }
+        await safeReply(ctx, formatBudgetReportMessage(evaluated), { parse_mode: "Markdown" });
         return;
       } else if (item.tipo === "consulta_gasto_categoria") {
         const catBuscada = item.categoria;
@@ -597,22 +700,49 @@ async function processIncomingTransaction(ctx: TelegramContext, userId: string, 
         }
 
         const mult = item.tipo === "ingreso" ? 1 : -1;
-        const descripcion = item.descripcion || item.categoria || userInput;
+        const categoriaFinal = item.categoria || "Varios";
+        const descripcion = item.descripcion || categoriaFinal || userInput;
         batch.set(adminDb.collection("transactions").doc(), {
           userId, monto, tipo: item.tipo || "gasto", accountId: accountDoc.id,
-          categoria: item.categoria || "Varios", subcategoria: item.subcategoria || "", descripcion: descripcion,
+          categoria: categoriaFinal, subcategoria: item.subcategoria || "", descripcion: descripcion,
           timestamp, createdAt: admin.firestore.FieldValue.serverTimestamp(), fuente: "telegram"
         });
         batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(mult * monto) });
+        if (mult < 0) {
+          const catKey = normalizeCategoryKey(categoriaFinal);
+          addedExpensesByCat[catKey] = (addedExpensesByCat[catKey] || 0) + monto;
+        }
         const dateLabel = item.fecha ? `[${item.fecha}] ` : "";
         const detailLabel = item.descripcion && item.descripcion !== item.categoria ? ` - ${item.descripcion}` : "";
-        results.push(`${mult > 0 ? "💰" : "💳"} ${dateLabel}$${monto} en ${item.categoria}${detailLabel} (${accountDoc.data().nombre})`);
+        results.push(`${mult > 0 ? "💰" : "💳"} ${dateLabel}$${monto} en ${categoriaFinal}${detailLabel} (${accountDoc.data().nombre})`);
       }
     }
 
     if (results.length > 0) {
+      let budgetNotes = "";
+      const expenseKeys = Object.keys(addedExpensesByCat);
+      if (expenseKeys.length > 0) {
+        try {
+          const evaluated = await getEvaluatedUserBudgets(userId, addedExpensesByCat);
+          if (evaluated) {
+            const matchedNotes = evaluated.items
+              .filter((b) => expenseKeys.includes(normalizeCategoryKey(b.categoria)))
+              .map((b) => {
+                const emoji = getStatusEmoji(b.status);
+                const estado = getBudgetStatusLabel(b.status);
+                return `${emoji} Presupuesto ${b.categoria}: $${b.spent.toFixed(2)}/$${b.limit.toFixed(2)} (${b.pctRaw}% · ${estado})`;
+              });
+            if (matchedNotes.length > 0) {
+              budgetNotes = "\n\n" + matchedNotes.join("\n");
+            }
+          }
+        } catch (budgetErr) {
+          console.warn("Could not evaluate budgets after transaction:", budgetErr);
+        }
+      }
+
       await batch.commit();
-      await safeReply(ctx, `✅ REPORTE:\n${results.join("\n")}`);
+      await safeReply(ctx, `✅ REPORTE:\n${results.join("\n")}${budgetNotes}`);
     } else {
       await safeReply(ctx, "❌ Error: Verifica cuentas o montos.");
     }
@@ -857,13 +987,29 @@ bot.on("callback_query", async (ctx) => {
 
       batch.update(accountDoc.ref, { saldo: admin.firestore.FieldValue.increment(-monto) });
 
+      const catFinal = data.categoria || "Varios";
+      let budgetLine = "";
+      try {
+        const catKey = normalizeCategoryKey(catFinal);
+        const evaluated = await getEvaluatedUserBudgets(userId, { [catKey]: monto });
+        const matchItem = evaluated?.items.find(
+          (b) => normalizeCategoryKey(b.categoria) === catKey
+        );
+        if (matchItem) {
+          const emoji = getStatusEmoji(matchItem.status);
+          budgetLine = `\n${emoji} Presupuesto ${matchItem.categoria}: $${matchItem.spent.toFixed(2)}/$${matchItem.limit.toFixed(2)} (${matchItem.pctRaw}% · ${getBudgetStatusLabel(matchItem.status)})`;
+        }
+      } catch (budgetErr) {
+        console.warn("Could not evaluate budget after receipt confirm:", budgetErr);
+      }
+
       await batch.commit();
       
       // Limpiar datos temporales
       await adminDb.collection("pendingTransactions").doc(pendingId).delete();
 
       await ctx.answerCbQuery("✅ Registrado!");
-      await ctx.editMessageText(`✅ *Gasto Registrado:*\n\n💰 $${monto} en ${data.categoria}\n📂 ${data.descripcion}`, { parse_mode: "Markdown" });
+      await ctx.editMessageText(`✅ *Gasto Registrado:*\n\n💰 $${monto} en ${catFinal}\n📂 ${data.descripcion}${budgetLine}`, { parse_mode: "Markdown" });
 
     } catch (error) {
       console.error("Error confirming receipt:", error);
