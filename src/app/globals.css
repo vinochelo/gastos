@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+}
+
 @theme {
   --color-indigo-50: #eefdfd;
   --color-indigo-100: #d6f7f8;
@@ -21,6 +30,7 @@
   --primary-glow: rgba(10, 112, 117, 0.15);
   --card: #ffffff;
   --border: #e1ecec;
+  --accent: #d6f7f8;
   --card-border: rgba(255, 255, 255, 0.6);
 }
 
@@ -31,6 +41,7 @@
   --primary-glow: rgba(13, 156, 164, 0.25);
   --card: #082226;
   --border: #0d2f34;
+  --accent: #0e494d;
   --card-border: rgba(255, 255, 255, 0.05);
 }
 
