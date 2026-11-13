@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
-import { updateDoc, doc, increment } from "firebase/firestore";
+import { doc, increment, writeBatch } from "firebase/firestore";
 import { X, Tag } from "lucide-react";
 import { Transaction } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useApp } from "@/context/AppContext";
 
 interface Props {
   isOpen: boolean;
@@ -18,6 +19,7 @@ interface Props {
 export default function EditTransactionModal({ isOpen, onClose, transaction }: Props) {
   const { accounts } = useAccounts();
   const { config } = useUserConfig();
+  const { showToast } = useApp();
   const [amount, setAmount] = useState(transaction.monto.toString());
   const [description, setDescription] = useState(transaction.descripcion || "");
   const [category, setCategory] = useState(transaction.categoria);
@@ -62,11 +64,18 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
     setLoading(true);
     try {
       const newMonto = parseFloat(amount);
+      if (isNaN(newMonto) || newMonto <= 0) {
+        showToast("Ingresa un monto válido", "error");
+        setLoading(false);
+        return;
+      }
       const oldMonto = transaction.monto;
+      const batch = writeBatch(db);
+      const txRef = doc(db, "transactions", transaction.id);
       
       if (isTransfer) {
         if (!fromId || !toId || fromId === toId) {
-          alert("Selecciona cuentas de origen y destino válidas y diferentes.");
+          showToast("Selecciona cuentas de origen y destino válidas y diferentes.", "error");
           setLoading(false);
           return;
         }
@@ -74,37 +83,24 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
         const fromAccount = accounts.find(a => a.id === fromId);
         const toAccount = accounts.find(a => a.id === toId);
 
-        const updates: Record<string, unknown> = {
+        batch.update(txRef, {
           monto: newMonto,
           descripcion: description || `Transferencia: ${fromAccount?.nombre} → ${toAccount?.nombre}`,
           fromId,
           toId,
           fromNombre: fromAccount?.nombre,
           toNombre: toAccount?.nombre,
-        };
+        });
 
-        await updateDoc(doc(db, "transactions", transaction.id), updates);
-
-        // 1. Revertir saldo anterior
         if (transaction.fromId) {
-          await updateDoc(doc(db, "accounts", transaction.fromId), { 
-            saldo: increment(oldMonto) 
-          });
+          batch.update(doc(db, "accounts", transaction.fromId), { saldo: increment(oldMonto) });
         }
         if (transaction.toId) {
-          await updateDoc(doc(db, "accounts", transaction.toId), { 
-            saldo: increment(-oldMonto) 
-          });
+          batch.update(doc(db, "accounts", transaction.toId), { saldo: increment(-oldMonto) });
         }
 
-        // 2. Aplicar nuevo saldo
-        await updateDoc(doc(db, "accounts", fromId), { 
-          saldo: increment(-newMonto) 
-        });
-        await updateDoc(doc(db, "accounts", toId), { 
-          saldo: increment(newMonto) 
-        });
-
+        batch.update(doc(db, "accounts", fromId), { saldo: increment(-newMonto) });
+        batch.update(doc(db, "accounts", toId), { saldo: increment(newMonto) });
       } else {
         const diff = newMonto - oldMonto;
         const updates: Record<string, unknown> = {
@@ -118,7 +114,7 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
           updates.accountId = accountId;
         }
 
-        await updateDoc(doc(db, "transactions", transaction.id), updates);
+        batch.update(txRef, updates);
 
         const hasAmountChanged = diff !== 0;
         const hasAccountChanged = accountId !== transaction.accountId;
@@ -126,26 +122,26 @@ export default function EditTransactionModal({ isOpen, onClose, transaction }: P
         if (hasAmountChanged || hasAccountChanged) {
           const mult = transaction.tipo === 'ingreso' ? 1 : -1;
           
-          // 1. Revertir saldo en la cuenta original
           if (transaction.accountId) {
-            await updateDoc(doc(db, "accounts", transaction.accountId), { 
+            batch.update(doc(db, "accounts", transaction.accountId), { 
               saldo: increment(-mult * oldMonto) 
             });
           }
           
-          // 2. Aplicar saldo en la cuenta seleccionada (nueva o misma)
           if (accountId) {
-            await updateDoc(doc(db, "accounts", accountId), { 
+            batch.update(doc(db, "accounts", accountId), { 
               saldo: increment(mult * newMonto) 
             });
           }
         }
       }
 
+      await batch.commit();
+      showToast("Transacción actualizada", "success");
       onClose();
     } catch (error) {
       console.error(error);
-      alert("Error al guardar cambios");
+      showToast("Error al guardar cambios", "error");
     } finally {
       setLoading(false);
     }

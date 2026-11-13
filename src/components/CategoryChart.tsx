@@ -1,9 +1,10 @@
 'use client';
 
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { useRecentTransactions, Transaction } from '@/hooks/useFirestore';
+import { useTransactionsPeriod, Transaction } from '@/hooks/useFirestore';
 import { useState, useMemo, useCallback } from "react";
-import { ChevronLeft, Settings, Trash2 } from "lucide-react";
+import { ChevronLeft, Pencil, Trash2 } from "lucide-react";
+import { useApp } from '@/context/AppContext';
 
 interface CategoryData {
   name: string;
@@ -34,31 +35,17 @@ const getTimestamp = (tx: Transaction): number => {
 };
 
 export default function CategoryChart({ onEdit, onDelete, selectedMonth, selectedYear }: CategoryChartProps) {
-  const { transactions } = useRecentTransactions(100);
+  const now = new Date();
+  const activeMonth = selectedMonth !== undefined ? selectedMonth : now.getMonth();
+  const activeYear = selectedYear !== undefined ? selectedYear : now.getFullYear();
+
   const [activeType, setActiveType] = useState<'gasto' | 'ingreso'>('gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [period, setPeriod] = useState<'mes' | '30dias' | 'todo'>('mes');
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null);
+  const { formatAmount } = useApp();
 
-  const filteredTransactions = useMemo(() => {
-    const now = new Date();
-    const activeMonth = selectedMonth !== undefined ? selectedMonth : now.getMonth();
-    const activeYear = selectedYear !== undefined ? selectedYear : now.getFullYear();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    return transactions.filter(tx => {
-      const ts = tx.timestamp || tx.createdAt;
-      const txDate = ts ? ('toDate' in ts ? (ts as any).toDate() : (ts instanceof Date ? ts : new Date(ts as any))) : new Date();
-      
-      if (period === 'mes') {
-        return txDate.getMonth() === activeMonth && txDate.getFullYear() === activeYear;
-      }
-      if (period === '30dias') {
-        return txDate >= thirtyDaysAgo;
-      }
-      return true; // 'todo'
-    });
-  }, [transactions, period, selectedMonth, selectedYear]);
+  const { transactions: filteredTransactions } = useTransactionsPeriod(period, activeMonth, activeYear);
 
   const categoryData = useMemo(() => {
     return filteredTransactions
@@ -108,7 +95,7 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
           </button>
           <div>
             <h3 className="text-lg font-bold">{selectedCategory}</h3>
-            <p className="text-sm opacity-40">{categoryTransactions.length} transacciones • ${categoryTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+            <p className="text-sm opacity-40">{categoryTransactions.length} transacciones • {formatAmount(categoryTotal)}</p>
           </div>
         </div>
 
@@ -124,18 +111,20 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
                 </div>
                 <div className="flex items-center gap-2">
                   <p className={`text-sm font-black ${tx.tipo === 'ingreso' ? 'text-emerald-500' : ''}`}>
-                    {tx.tipo === 'ingreso' ? '+' : '-'}${tx.monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                    {tx.tipo === 'ingreso' ? '+' : '-'}{formatAmount(tx.monto)}
                   </p>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-85 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <button 
                       onClick={() => onEdit?.(tx)}
-                      className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg shrink-0 text-indigo-500"
+                      title="Editar"
+                      className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg shrink-0 text-indigo-500 cursor-pointer"
                     >
-                      <Settings size={14} />
+                      <Pencil size={14} />
                     </button>
                     <button 
                       onClick={() => onDelete?.(tx)}
-                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg shrink-0 text-rose-500"
+                      title="Eliminar"
+                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg shrink-0 text-rose-500 cursor-pointer"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -153,10 +142,30 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
     );
   }
 
-  if (transactions.length === 0 || categoryData.length === 0) {
+  if (filteredTransactions.length === 0 || categoryData.length === 0) {
     return (
-      <div className="glass rounded-3xl p-8 text-center border border-border shadow-sm animate-in fade-in">
-        <p className="text-sm opacity-40">Sin datos de {activeType}s</p>
+      <div className="glass rounded-3xl p-8 text-center border border-border shadow-sm animate-in fade-in space-y-3">
+        <div className="flex justify-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit mx-auto">
+          <button 
+            type="button"
+            onClick={() => { setActiveType('gasto'); setHoveredCategory(null); }}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeType === 'gasto' ? 'bg-white dark:bg-gray-700 text-rose-500 shadow-sm' : 'text-foreground/50'
+            }`}
+          >
+            Gastos
+          </button>
+          <button 
+            type="button"
+            onClick={() => { setActiveType('ingreso'); setHoveredCategory(null); }}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeType === 'ingreso' ? 'bg-white dark:bg-gray-700 text-emerald-500 shadow-sm' : 'text-foreground/50'
+            }`}
+          >
+            Ingresos
+          </button>
+        </div>
+        <p className="text-sm opacity-45">Sin datos de {activeType}s en este período</p>
       </div>
     );
   }
@@ -223,13 +232,13 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
             {hoveredCategory ? (
               <div className="animate-in fade-in zoom-in-95 duration-200">
                 <p className="text-[9px] font-extrabold uppercase tracking-wider text-indigo-500/80 truncate w-32">{hoveredCategory.name}</p>
-                <p className="text-xl font-black text-foreground mt-0.5 leading-none">${hoveredCategory.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+                <p className="text-xl font-black text-foreground mt-0.5 leading-none">{formatAmount(hoveredCategory.value)}</p>
                 <p className="text-[10px] font-bold text-foreground/45 mt-1">{((hoveredCategory.value / total) * 100).toFixed(1)}%</p>
               </div>
             ) : (
               <div className="animate-in fade-in duration-200">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 leading-none">Total</p>
-                <p className="text-2xl font-black text-foreground mt-1 tracking-tight leading-none">${total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+                <p className="text-2xl font-black text-foreground mt-1 tracking-tight leading-none">{formatAmount(total)}</p>
               </div>
             )}
           </div>
@@ -280,7 +289,7 @@ export default function CategoryChart({ onEdit, onDelete, selectedMonth, selecte
                     <span className="text-xs font-bold text-foreground truncate">{entry.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold text-foreground/50">${entry.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-xs font-semibold text-foreground/50">{formatAmount(entry.value)}</span>
                     <span className="text-xs font-extrabold text-foreground w-8 text-right">{percentage}%</span>
                   </div>
                 </div>

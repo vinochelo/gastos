@@ -26,7 +26,7 @@ interface Debt {
 export default function DeudasPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
-  const { openDrawer, formatAmount } = useApp();
+  const { openDrawer, formatAmount, showToast, confirmAction } = useApp();
   const router = useRouter();
 
   // Modal states
@@ -132,17 +132,24 @@ export default function DeudasPage() {
       });
     } catch (err) {
       console.error(err);
-      alert("Error al actualizar estado");
+      showToast("Error al actualizar estado", "error");
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este registro de deuda?")) return;
+    const confirmed = await confirmAction({
+      title: "Eliminar deuda",
+      message: "¿Estás seguro de eliminar este registro de deuda?",
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteDoc(doc(db, "debts", id));
+      showToast("Deuda eliminada", "success");
     } catch (err) {
       console.error(err);
-      alert("Error al eliminar");
+      showToast("Error al eliminar", "error");
     }
   };
 

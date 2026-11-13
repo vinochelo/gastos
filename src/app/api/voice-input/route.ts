@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { transcribeAudio, parseTransaction } from "@/services/groq";
+import { getAuthenticatedUserId } from "@/lib/auth-server";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -9,12 +10,16 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   let tempFilePath = "";
   try {
+    const userId = await getAuthenticatedUserId(request);
+    if (!userId) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    const userId = formData.get("userId") as string | null;
 
-    if (!file || !userId) {
-      return NextResponse.json({ error: "Archivo y User ID requeridos" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "Archivo requerido" }, { status: 400 });
     }
 
     // 1. Escribir el audio en un archivo temporal
@@ -65,7 +70,7 @@ export async function POST(request: NextRequest) {
     // Limpiar archivo temporal en caso de error
     try {
       if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-    } catch (e) {}
+    } catch { /* ignore cleanup error */ }
 
     return NextResponse.json({ error: "Error al procesar el audio" }, { status: 500 });
   }

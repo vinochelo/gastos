@@ -4,4 +4,5 @@
     <string name="title_activity_main">Control de Gastos</string>
     <string name="package_name">com.gestordegastos.app</string>
     <string name="custom_url_scheme">com.gestordegastos.app</string>
+    <string name="server_client_id">505851925373-rn8c8fnrjnht0qllfsldrnlnjoihijpf.apps.googleusercontent.com</string>
 </resources>

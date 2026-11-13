@@ -8,10 +8,12 @@ import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Sm
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
-import { getApiUrl } from "@/lib/api";
+import { authFetch } from "@/lib/api";
 import { AVAILABLE_ICONS } from "@/lib/categoryIcons";
 import CategoryIcon from "@/components/CategoryIcon";
 import { APP_VERSION } from "@/lib/version";
+import { useApp } from "@/context/AppContext";
+import { signOutAll } from "@/hooks/useAuth";
 
 
 const TELEGRAM_BOT_USERNAME = "controldegastosvvBot";
@@ -41,6 +43,7 @@ export default function AjustesPage() {
   const [iconPickerCategory, setIconPickerCategory] = useState<string | null>(null);
 
   const router = useRouter();
+  const { confirmAction } = useApp();
 
   useEffect(() => {
     const checkMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
@@ -121,10 +124,10 @@ export default function AjustesPage() {
     if (!auth.currentUser || mobileCodeLoading) return;
     setMobileCodeLoading(true);
     try {
-      const res = await fetch(getApiUrl('/api/mobile-auth/generate'), {
+      const res = await authFetch('/api/mobile-auth/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: auth.currentUser.uid })
+        body: JSON.stringify({})
       });
       const data = await res.json();
       if (data.code) {
@@ -162,10 +165,10 @@ export default function AjustesPage() {
     setCodeLoading(true);
     
     try {
-      const res = await fetch(getApiUrl('/api/linking/generate'), {
+      const res = await authFetch('/api/linking/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: auth.currentUser.uid })
+        body: JSON.stringify({})
       });
       const data = await res.json();
       
@@ -344,7 +347,13 @@ export default function AjustesPage() {
 
   const handleResetCategories = async () => {
     if (!auth.currentUser) return;
-    if (!confirm(`¿Restablecer categorías de ${activeCategoryTab}?`)) return;
+    const confirmed = await confirmAction({
+      title: "Restablecer categorías",
+      message: `¿Restablecer categorías de ${activeCategoryTab} a los valores por defecto?`,
+      confirmText: "Restablecer",
+      destructive: true,
+    });
+    if (!confirmed) return;
     
     if (activeCategoryTab === 'gastos') {
       setExpenseCategories(DEFAULT_CATEGORIES);
@@ -362,8 +371,14 @@ export default function AjustesPage() {
   };
 
   const handleLogout = async () => {
-    if (!confirm("¿Cerrar sesión?")) return;
-    await auth.signOut();
+    const confirmed = await confirmAction({
+      title: "Cerrar sesión",
+      message: "¿Deseas cerrar tu sesión en este dispositivo?",
+      confirmText: "Cerrar sesión",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    await signOutAll();
     router.push('/login');
   };
 

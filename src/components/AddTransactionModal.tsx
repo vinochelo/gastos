@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { useAccounts, useUserConfig } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
-import { addDoc, collection, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore";
+import { collection, serverTimestamp, doc, increment, writeBatch } from "firebase/firestore";
 import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle, Calendar, Calculator, Percent, Mic, Square, Loader2 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
-import { getApiUrl } from "@/lib/api";
+import { authFetch } from "@/lib/api";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useApp } from "@/context/AppContext";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ interface AddTransactionModalProps {
 export default function AddTransactionModal({ isOpen, onClose, defaultType = "gasto", initialData = null }: AddTransactionModalProps) {
   const { accounts } = useAccounts();
   const { config } = useUserConfig();
+  const { showToast } = useApp();
   const [type, setType] = useState<"gasto" | "ingreso">(defaultType);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -81,7 +83,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       setIsRecording(true);
     } catch (err: any) {
       console.error(err);
-      alert("No se pudo acceder al micrófono. Por favor concede permisos.");
+      showToast("No se pudo acceder al micrófono. Por favor concede permisos.", "error");
     }
   };
 
@@ -99,9 +101,8 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
     try {
       const formData = new FormData();
       formData.append("file", blob, "voice.webm");
-      formData.append("userId", auth.currentUser.uid);
 
-      const res = await fetch(getApiUrl("/api/voice-input"), {
+      const res = await authFetch("/api/voice-input", {
         method: "POST",
         body: formData,
       });
@@ -209,7 +210,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) {
-      alert("Sesión expirada. Por favor, recarga la página.");
+      showToast("Sesión expirada. Por favor, recarga la página.", "error");
       return;
     }
     if (!amount || !accountId) return;
@@ -225,8 +226,10 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
     
     try {
       const mult = type === "ingreso" ? 1 : -1;
-      
-      await addDoc(collection(db, "transactions"), {
+      const batch = writeBatch(db);
+      const txRef = doc(collection(db, "transactions"));
+
+      batch.set(txRef, {
         userId: auth.currentUser.uid,
         monto,
         descripcion: description || category,
@@ -240,15 +243,18 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       });
 
       const accountRef = doc(db, "accounts", accountId);
-      await updateDoc(accountRef, {
+      batch.update(accountRef, {
         saldo: increment(mult * monto)
       });
+
+      await batch.commit();
 
       setAmount("");
       setDescription("");
       setCategory("");
       setSubcategoria("");
       setAccountId("");
+      showToast(type === "ingreso" ? "Ingreso registrado" : "Gasto registrado", "success");
       onClose();
     } catch (err) {
       console.error(err);

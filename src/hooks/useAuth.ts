@@ -3,6 +3,8 @@
 import { auth, db } from "@/lib/firebase";
 import { 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged, 
@@ -18,17 +20,60 @@ import { useEffect, useState } from "react";
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from "@/lib/defaults";
 import { Capacitor } from "@capacitor/core";
 
+const DEFAULT_GOOGLE_WEB_CLIENT_ID =
+  "505851925373-rn8c8fnrjnht0qllfsldrnlnjoihijpf.apps.googleusercontent.com";
+
+export async function signOutAll() {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+      const webClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
+      await GoogleAuth.initialize({
+        clientId: webClientId,
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: false,
+      });
+      await GoogleAuth.signOut();
+    } catch {
+      // Ignorar si no había sesión de Google activa en el dispositivo
+    }
+  }
+  await signOut(auth);
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
+
+    if (!Capacitor.isNativePlatform()) {
+      getRedirectResult(auth)
+        .then(async (result) => {
+          if (active && result?.user) {
+            await initializeUserRecord(result.user);
+            setUser(result.user);
+          }
+        })
+        .catch((err: unknown) => {
+          const code = (err as { code?: string })?.code;
+          if (active && code && code !== "auth/popup-closed-by-user") {
+            setError("No se pudo completar el inicio de sesión con Google.");
+          }
+        });
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!active) return;
       setUser(firebaseUser);
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   // Inicializar o sincronizar el registro del usuario en Firestore
@@ -84,28 +129,18 @@ export function useAuth() {
       const isNative = Capacitor.isNativePlatform();
       
       if (isNative) {
-        // En dispositivo móvil nativo, usamos el SDK nativo de Google Auth
+        // En Android nativo, usa el selector de cuentas Google del dispositivo
         const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
-        
-        // Obtener el Web Client ID de la configuración del entorno
-        const webClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-        
-        if (!webClientId) {
-          throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID no está configurado en .env.local. Por favor configura tu Web Client ID.");
-        }
+        const webClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
 
-        try {
-          GoogleAuth.initialize({
-            clientId: webClientId,
-            scopes: ['profile', 'email'],
-            grantOfflineAccess: true,
-          });
-        } catch (e) {
-          // Si ya está inicializado, ignorar
-        }
+        await GoogleAuth.initialize({
+          clientId: webClientId,
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: false,
+        });
 
         const googleUser = await GoogleAuth.signIn();
-        const idToken = googleUser.authentication.idToken;
+        const idToken = googleUser.authentication?.idToken;
         
         if (!idToken) {
           throw new Error("No se recibió ID Token del inicio de sesión de Google.");
@@ -116,22 +151,47 @@ export function useAuth() {
         await initializeUserRecord(result.user);
         setUser(result.user);
       } else {
-        // En la web, usamos el flujo normal de popup de Firebase Auth
+        // En PC/Web, abre el selector de sesiones Google activas del navegador
         const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        await initializeUserRecord(result.user);
-        setUser(result.user);
+        provider.addScope('profile');
+        provider.addScope('email');
+        provider.setCustomParameters({ prompt: 'select_account' });
+
+        try {
+          const result = await signInWithPopup(auth, provider);
+          await initializeUserRecord(result.user);
+          setUser(result.user);
+        } catch (popupErr: unknown) {
+          const code = (popupErr as { code?: string })?.code;
+          if (
+            code === 'auth/popup-blocked' ||
+            code === 'auth/operation-not-supported-in-this-environment'
+          ) {
+            await signInWithRedirect(auth, provider);
+            return;
+          }
+          throw popupErr;
+        }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error en login con Google:", error);
-      let errorMessage = "Error al iniciar sesión con Google";
-      
-      if (error.code === "auth/popup-closed-by-user" || error.message?.includes("closed")) {
+      const errObj = error as { code?: string; message?: string };
+      const code = String(errObj?.code || "");
+      const msg = String(errObj?.message || "");
+      let errorMessage = "Error al iniciar sesión con Google.";
+
+      if (code === "12501" || msg.includes("12501") || msg.toLowerCase().includes("cancel")) {
+        errorMessage = "Inicio de sesión cancelado.";
+      } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request" || msg.includes("closed")) {
         errorMessage = "Ventana cerrada. Intenta de nuevo.";
-      } else if (error.code === "auth/unauthorized-domain") {
+      } else if (code === "10" || msg.includes("DEVELOPER_ERROR")) {
+        errorMessage = "Falta registrar la huella SHA-1 de esta build en Firebase Console.";
+      } else if (code === "auth/unauthorized-domain") {
         errorMessage = "Dominio no autorizado. Contacta al administrador.";
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else if (code === "auth/network-request-failed") {
+        errorMessage = "Error de red al conectar con Google.";
+      } else if (msg) {
+        errorMessage = msg;
       }
       
       setError(errorMessage);
@@ -146,10 +206,11 @@ export function useAuth() {
       await initializeUserRecord(result.user);
       setUser(result.user);
       return result.user;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error en login con custom token:", err);
+      const code = (err as { code?: string })?.code;
       let errMsg = "Código de acceso incorrecto o expirado.";
-      if (err.code === "auth/invalid-custom-token") {
+      if (code === "auth/invalid-custom-token") {
         errMsg = "El código de acceso no es válido.";
       }
       setError(errMsg);
@@ -167,12 +228,13 @@ export function useAuth() {
       await initializeUserRecord(result.user);
       setUser(result.user);
       return result.user;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error en login con correo:", err);
+      const code = (err as { code?: string })?.code;
       let errMsg = "Error al iniciar sesión.";
-      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+      if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
         errMsg = "Correo o contraseña incorrectos.";
-      } else if (err.code === "auth/invalid-email") {
+      } else if (code === "auth/invalid-email") {
         errMsg = "El correo electrónico no es válido.";
       }
       setError(errMsg);
@@ -193,14 +255,15 @@ export function useAuth() {
       await initializeUserRecord(updatedUser);
       setUser(updatedUser);
       return updatedUser;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error en registro con correo:", err);
+      const code = (err as { code?: string })?.code;
       let errMsg = "Error al crear la cuenta.";
-      if (err.code === "auth/email-already-in-use") {
+      if (code === "auth/email-already-in-use") {
         errMsg = "Este correo electrónico ya está registrado.";
-      } else if (err.code === "auth/weak-password") {
+      } else if (code === "auth/weak-password") {
         errMsg = "La contraseña debe tener al menos 6 caracteres.";
-      } else if (err.code === "auth/invalid-email") {
+      } else if (code === "auth/invalid-email") {
         errMsg = "El correo electrónico no es válido.";
       }
       setError(errMsg);
@@ -211,7 +274,7 @@ export function useAuth() {
   };
 
   const logout = async () => {
-    await signOut(auth);
+    await signOutAll();
   };
 
   return { 

@@ -3,45 +3,59 @@
 
 
 
-import { useState, useEffect } from "react";
-import { useAccounts, useRecentTransactions, useUserConfig, Transaction } from "@/hooks/useFirestore";
-import { Plus, ArrowRightLeft, TrendingDown, TrendingUp, Wallet, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, AlertCircle, Sparkles, X, Menu } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import {
+  useAccounts,
+  useMonthTransactions,
+  useUserConfig,
+  useBudgets,
+  useDebts,
+  useGoals,
+  Transaction,
+} from "@/hooks/useFirestore";
+import { Plus, ArrowRightLeft, Settings, MessageCircle, ChevronRight, Loader2, Mic, Square, Sparkles, X, Menu, Send, TrendingUp, DollarSign, Target } from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransferModal from "@/components/TransferModal";
 import EditTransactionModal from "@/components/EditTransactionModal";
 import CategoryChart from "@/components/CategoryChart";
-import { auth, db } from "@/lib/firebase";
-import { deleteDoc, doc, updateDoc, increment } from "firebase/firestore";
+import TransactionItem from "@/components/TransactionItem";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
-import { getApiUrl } from "@/lib/api";
-import CategoryIcon from "@/components/CategoryIcon";
+import { authFetch } from "@/lib/api";
+import { deleteTransactionAtomic } from "@/lib/transactions";
 import { useApp } from "@/context/AppContext";
 import SplashLoading from "@/components/SplashLoading";
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
-  const { openDrawer, formatAmount } = useApp();
+  const { openDrawer, formatAmount, showToast, confirmAction } = useApp();
   const router = useRouter();
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
   const { accounts } = useAccounts();
-  const { transactions } = useRecentTransactions(100);
+  const { transactions } = useMonthTransactions(selectedMonth, selectedYear);
   const { config } = useUserConfig();
+  const { budgets } = useBudgets();
+  const { debts } = useDebts();
+  const { goals } = useGoals();
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
-  
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   // Voice recording state variables
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [isVoiceLoading, setIsVoiceLoading] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [initialVoiceData, setInitialVoiceData] = useState<any>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [timerInterval, setTimerInterval] = useState<any>(null);
+
+  // Quick natural-language input state
+  const [quickText, setQuickText] = useState("");
+  const [isQuickTextLoading, setIsQuickTextLoading] = useState(false);
   
   // AI analysis states
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -53,11 +67,10 @@ export default function Dashboard() {
     setIsAiLoading(true);
     setAiAnalysis(null);
     try {
-      const res = await fetch(getApiUrl("/api/analysis"), {
+      const res = await authFetch("/api/analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          userId: user.uid,
           month: selectedMonth,
           year: selectedYear
         })
@@ -67,11 +80,11 @@ export default function Dashboard() {
         setAiAnalysis(data.analysis);
         setIsAnalysisModalOpen(true);
       } else {
-        alert("Error: " + (data.error || "No se pudo generar el análisis"));
+        showToast(data.error || "No se pudo generar el análisis", "error");
       }
     } catch (err) {
       console.error("Error fetching AI analysis:", err);
-      alert("Error de conexión al generar el análisis.");
+      showToast("Error de conexión al generar el análisis.", "error");
     } finally {
       setIsAiLoading(false);
     }
@@ -84,7 +97,6 @@ export default function Dashboard() {
   }, [timerInterval]);
 
   const startRecording = async () => {
-    setVoiceError(null);
     setRecordingDuration(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -115,8 +127,7 @@ export default function Dashboard() {
 
     } catch (err: any) {
       console.error(err);
-      alert("No se pudo acceder al micrófono. Por favor, concede los permisos correspondientes.");
-      setVoiceError("Permiso de micrófono denegado.");
+      showToast("No se pudo acceder al micrófono. Concede los permisos correspondientes.", "error");
     }
   };
 
@@ -131,16 +142,30 @@ export default function Dashboard() {
     }
   };
 
+  const openParsedResult = (result: any, sourceText: string) => {
+    if (!result) {
+      showToast(`No pude clasificar "${sourceText}". Intenta incluir monto y detalle.`, "info");
+      return;
+    }
+    if (result.tipo === "transferencia") {
+      setInitialVoiceData(result);
+      setIsTransferModalOpen(true);
+    } else if (result.tipo === "gasto" || result.tipo === "ingreso") {
+      setInitialVoiceData(result);
+      setIsAddModalOpen(true);
+    } else {
+      showToast(`Detectado: ${result.tipo}. Usa un gasto, ingreso o transferencia.`, "info");
+    }
+  };
+
   const handleVoiceUpload = async (blob: Blob) => {
     if (!user) return;
     setIsVoiceLoading(true);
-    setVoiceError(null);
     try {
       const formData = new FormData();
       formData.append("file", blob, "voice.webm");
-      formData.append("userId", user.uid);
 
-      const res = await fetch(getApiUrl("/api/voice-input"), {
+      const res = await authFetch("/api/voice-input", {
         method: "POST",
         body: formData,
       });
@@ -150,26 +175,34 @@ export default function Dashboard() {
         throw new Error(data.error);
       }
       
-      if (data.result) {
-        const result = data.result;
-        if (result.tipo === "transferencia") {
-          setInitialVoiceData(result);
-          setIsTransferModalOpen(true);
-        } else if (result.tipo === "gasto" || result.tipo === "ingreso") {
-          setInitialVoiceData(result);
-          setIsAddModalOpen(true);
-        } else {
-          alert(`Comando de voz detectado: ${result.tipo}. Mensaje: "${data.text}"`);
-        }
-      } else {
-        alert(`Trascripción: "${data.text}". No pude clasificar esta transacción.`);
-      }
+      openParsedResult(data.result, data.text);
     } catch (err: any) {
       console.error(err);
-      setVoiceError(err.message || "Error al procesar la voz");
-      alert("Error de procesamiento de voz: " + (err.message || "Intenta de nuevo."));
+      showToast("Error de procesamiento de voz: " + (err.message || "Intenta de nuevo."), "error");
     } finally {
       setIsVoiceLoading(false);
+    }
+  };
+
+  const handleQuickTextSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !quickText.trim() || isQuickTextLoading) return;
+    setIsQuickTextLoading(true);
+    try {
+      const res = await authFetch("/api/text-input", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: quickText.trim() }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setQuickText("");
+      openParsedResult(data.result, data.text);
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || "Error al interpretar el texto.", "error");
+    } finally {
+      setIsQuickTextLoading(false);
     }
   };
 
@@ -193,36 +226,31 @@ export default function Dashboard() {
     if (!transactions || !accounts) return { income: 0, expense: 0, totalBalance: 0 };
 
     let income = 0, expense = 0;
-    
+
     transactions.forEach(tx => {
-      try {
-        const ts = tx.timestamp;
-        if (!ts) return; // Skip if timestamp is still pending (null)
-        const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
-        if (txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear) {
-          if (tx.tipo === 'ingreso') income += Number(tx.monto || 0);
-          else if (tx.tipo === 'gasto') expense += Number(tx.monto || 0);
-        }
-      } catch (e) {
-        console.error("Error processing tx:", e);
-      }
+      if (tx.tipo === 'ingreso') income += Number(tx.monto || 0);
+      else if (tx.tipo === 'gasto') expense += Number(tx.monto || 0);
     });
-    
+
     const totalBalance = accounts
       .filter(a => !a.nombre.toLowerCase().includes("ahorro"))
       .reduce((acc, a) => acc + Number(a.saldo || 0), 0);
-    
-    return { income, expense, totalBalance };
-  }, [transactions, accounts, selectedMonth, selectedYear]);
 
-  const recentTransactions = useMemo(() => {
-    return transactions.filter(tx => {
-      const ts = tx.timestamp;
-      if (!ts) return true; // Show pending
-      const txDate = 'toDate' in ts ? ts.toDate() : (ts instanceof Date ? ts : new Date(ts as any));
-      return txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear;
-    });
-  }, [transactions, selectedMonth, selectedYear]);
+    return { income, expense, totalBalance };
+  }, [transactions, accounts]);
+
+  const moduleSummary = useMemo(() => {
+    const activeBudgets = budgets.length;
+    const pendingDebt = debts
+      .filter(d => !d.pagado && d.tipo === "debo")
+      .reduce((sum, d) => sum + Number(d.monto || 0), 0);
+    const pendingCollect = debts
+      .filter(d => !d.pagado && d.tipo === "me_deben")
+      .reduce((sum, d) => sum + Number(d.monto || 0), 0);
+    const activeGoals = goals.length;
+    const totalSaved = goals.reduce((sum, g) => sum + Number(g.montoActual || 0), 0);
+    return { activeBudgets, pendingDebt, pendingCollect, activeGoals, totalSaved };
+  }, [budgets, debts, goals]);
 
   if (authLoading) return <SplashLoading />;
   
@@ -232,21 +260,20 @@ export default function Dashboard() {
   }
 
   const handleDeleteTx = async (tx: Transaction) => {
-    if (!confirm("¿Eliminar?")) return;
+    const confirmed = await confirmAction({
+      title: "Eliminar transacción",
+      message: `¿Deseas eliminar "${tx.descripcion || tx.categoria}" por ${formatAmount(tx.monto)}? Se revertirá el saldo en la cuenta.`,
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
     try {
-      if (tx.tipo === 'transferencia') {
-        if (tx.fromId) {
-          await updateDoc(doc(db, "accounts", tx.fromId), { saldo: increment(tx.monto) });
-        }
-        if (tx.toId) {
-          await updateDoc(doc(db, "accounts", tx.toId), { saldo: increment(-tx.monto) });
-        }
-      } else if (tx.accountId) {
-        const mult = tx.tipo === 'ingreso' ? -1 : 1;
-        await updateDoc(doc(db, "accounts", tx.accountId), { saldo: increment(mult * tx.monto) });
-      }
-      await deleteDoc(doc(db, "transactions", tx.id));
-    } catch { alert("Error al eliminar"); }
+      await deleteTransactionAtomic(tx);
+      showToast("Transacción eliminada", "success");
+    } catch {
+      showToast("Error al eliminar transacción", "error");
+    }
   };
 
   const getAccountBalance = (accountId: string) => {
@@ -394,7 +421,7 @@ export default function Dashboard() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-black tracking-tight text-foreground">Analizando tu voz con IA...</p>
-                <p className="text-[10px] text-foreground/45 uppercase tracking-wider font-extrabold">Groq Whisper & Llama 3</p>
+                <p className="text-[10px] text-foreground/45 uppercase tracking-wider font-extrabold">Groq Whisper & GPT-OSS 120B</p>
                 <p className="text-[10px] text-indigo-500 dark:text-indigo-400 italic max-w-[250px] mx-auto mt-2 leading-relaxed font-semibold">
                   Extrayendo montos, categorías, cuentas e intenciones de la transacción...
                 </p>
@@ -404,9 +431,29 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Quick Natural-Language Entry */}
+      <form onSubmit={handleQuickTextSubmit} className="glass rounded-2xl p-2 border border-border shadow-sm flex items-center gap-2">
+        <input
+          type="text"
+          value={quickText}
+          onChange={(e) => setQuickText(e.target.value)}
+          placeholder='Registro rápido con IA: ej. "Gasté 12.50 en almuerzo con Produbanco"'
+          className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-foreground placeholder-foreground/40 focus:outline-none font-medium min-w-0"
+        />
+        <button
+          type="submit"
+          disabled={!quickText.trim() || isQuickTextLoading}
+          title="Interpretar con IA"
+          className="h-9 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+        >
+          {isQuickTextLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          <span className="hidden sm:inline">Registrar</span>
+        </button>
+      </form>
+
       {/* Telegram Link Promo */}
       {!telegramLinked && (
-        <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-5 text-white shadow-xl shadow-indigo-500/10 border border-white/10 relative overflow-hidden group">
+        <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-teal-700 rounded-3xl p-5 text-white shadow-xl shadow-indigo-500/10 border border-white/10 relative overflow-hidden group">
           <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/5 rounded-full blur-xl group-hover:scale-150 transition-transform duration-700" />
           <div className="flex items-start gap-4 relative z-10">
             <div className="w-12 h-12 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/10">
@@ -453,10 +500,10 @@ export default function Dashboard() {
 
       {/* AI Financial Advisor Promo Card */}
       <div className="glass rounded-3xl p-5 border border-indigo-500/10 dark:border-indigo-500/20 shadow-sm relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 dark:from-indigo-500/2 dark:to-purple-500/2 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-emerald-500/5 dark:from-indigo-500/5 dark:to-emerald-500/5 pointer-events-none" />
         
         <div className="flex items-start gap-4 relative z-10">
-          <div className="w-12 h-12 bg-gradient-to-tr from-indigo-500 to-purple-500 text-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-500/20">
+          <div className="w-12 h-12 bg-gradient-to-tr from-indigo-500 to-emerald-500 text-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-500/20">
             <Sparkles size={22} className="animate-pulse" />
           </div>
           <div className="flex-1 min-w-0">
@@ -487,6 +534,45 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Planning Modules Quick Strip */}
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          onClick={() => router.push('/presupuestos')}
+          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-indigo-500/40 transition-all cursor-pointer glass-glow"
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <TrendingUp size={15} className="text-indigo-500" />
+            <ChevronRight size={13} className="opacity-35" />
+          </div>
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/45">Presupuestos</p>
+          <p className="text-sm font-black text-foreground mt-0.5">{moduleSummary.activeBudgets} activos</p>
+        </button>
+
+        <button
+          onClick={() => router.push('/deudas')}
+          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-indigo-500/40 transition-all cursor-pointer glass-glow"
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <DollarSign size={15} className="text-rose-500" />
+            <ChevronRight size={13} className="opacity-35" />
+          </div>
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/45">Por pagar</p>
+          <p className="text-sm font-black text-foreground mt-0.5 truncate">{formatAmount(moduleSummary.pendingDebt)}</p>
+        </button>
+
+        <button
+          onClick={() => router.push('/metas')}
+          className="glass rounded-2xl p-3.5 border border-border text-left hover:border-indigo-500/40 transition-all cursor-pointer glass-glow"
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <Target size={15} className="text-emerald-500" />
+            <ChevronRight size={13} className="opacity-35" />
+          </div>
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/45">Metas ({moduleSummary.activeGoals})</p>
+          <p className="text-sm font-black text-foreground mt-0.5 truncate">{formatAmount(moduleSummary.totalSaved)}</p>
+        </button>
       </div>
 
       {/* Cuentas Section */}
@@ -525,69 +611,19 @@ export default function Dashboard() {
         </div>
         
         <div className="space-y-2.5">
-          {recentTransactions.slice(0, 5).map((tx) => {
-            return (
-              <div 
-                key={tx.id} 
-                className="glass rounded-2xl p-3.5 flex items-center justify-between border border-border shadow-sm hover:bg-white dark:hover:bg-gray-800/80 transition-all duration-300 group"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    tx.tipo === 'ingreso' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 
-                    tx.tipo === 'transferencia' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' :
-                    'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                  }`}>
-                    {tx.tipo === 'transferencia' ? (
-                      <ArrowRightLeft size={16} />
-                    ) : (
-                      <CategoryIcon 
-                        categoryName={tx.categoria}
-                        userIconsMap={config?.categoryIcons}
-                        className="w-6 h-6"
-                        size={16}
-                      />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold truncate text-foreground">{tx.descripcion || tx.categoria}</p>
-                    <p className="text-[10px] font-semibold text-foreground/35 uppercase tracking-wider mt-0.5">
-                      {tx.categoria} {tx.subcategoria ? `➔ ${tx.subcategoria}` : ''}
-                      {tx.tipo === 'transferencia' ? (
-                        ` • ${accounts.find(a => a.id === tx.fromId)?.nombre || 'Origen'} ➔ ${accounts.find(a => a.id === tx.toId)?.nombre || 'Destino'}`
-                      ) : (
-                        tx.accountId ? ` • ${accounts.find(a => a.id === tx.accountId)?.nombre || 'Cuenta'}` : ''
-                      )}
-                    </p>
-                  </div>
-                </div>
-              
-              <div className="flex items-center gap-2">
-                <p className={`text-sm font-black ${tx.tipo === 'ingreso' ? 'text-emerald-500' : 'text-foreground'}`}>
-                  {tx.tipo === 'ingreso' ? '+' : '-'}{formatAmount(tx.monto)}
-                </p>
-                
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  <button 
-                    onClick={() => setEditingTx(tx)}
-                    title="Editar"
-                    className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg text-indigo-500 transition-colors"
-                  >
-                    <Settings size={13} />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteTx(tx)}
-                    title="Eliminar"
-                    className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-rose-500 transition-colors"
-                  >
-                    <TrendingDown size={13} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+          {transactions.slice(0, 5).map((tx) => (
+            <TransactionItem
+              key={tx.id}
+              tx={tx}
+              accounts={accounts}
+              categoryIcons={config?.categoryIcons}
+              formatAmount={formatAmount}
+              onEdit={setEditingTx}
+              onDelete={handleDeleteTx}
+            />
+          ))}
 
-          {recentTransactions.length === 0 && (
+          {transactions.length === 0 && (
             <div className="py-8 text-center glass rounded-2xl border border-dashed border-border">
               <p className="text-sm text-foreground/40 font-medium">Sin transacciones registradas este mes</p>
             </div>
@@ -637,8 +673,8 @@ export default function Dashboard() {
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto pr-1 py-1 text-xs text-foreground/80 leading-relaxed font-sans space-y-3 whitespace-pre-line scrollbar-thin">
-              {aiAnalysis}
+            <div className="flex-1 overflow-y-auto pr-1 py-1 scrollbar-thin">
+              {aiAnalysis ? <MarkdownRenderer content={aiAnalysis} /> : null}
             </div>
             
             <div className="mt-4 pt-3 border-t border-border/25 flex justify-end">

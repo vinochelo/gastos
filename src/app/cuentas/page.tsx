@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAccounts, Account } from "@/hooks/useFirestore";
 import { Plus, Wallet, CreditCard, Banknote, MoreVertical, LucideIcon, PiggyBank, X, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import AccountIcon from "@/components/AccountIcon";
-import { addDoc, collection, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { addDoc, collection, doc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useApp } from "@/context/AppContext";
 
@@ -27,29 +27,27 @@ const ACCOUNT_TYPES: Record<string, AccountConfig> = {
 
 export default function CuentasPage() {
   const { accounts, loading } = useAccounts();
-  const { formatAmount } = useApp();
+  const { formatAmount, showToast, confirmAction } = useApp();
   
   const moveAccount = async (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= accounts.length) return;
 
-    const acc1 = accounts[index];
-    const acc2 = accounts[newIndex];
+    const batch = writeBatch(db);
+    const reordered = [...accounts];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(newIndex, 0, moved);
 
-    // Assign order values
-    const order1 = newIndex;
-    const order2 = index;
-
-    // Update both documents in Firestore
-    await updateDoc(doc(db, "accounts", acc1.id), { orden: order1 });
-    await updateDoc(doc(db, "accounts", acc2.id), { orden: order2 });
-    
-    // Also, initialize all other accounts orders if they don't have them, to keep it consistent
-    accounts.forEach(async (acc, idx) => {
-      if (idx !== index && idx !== newIndex && (acc as any).orden === undefined) {
-        await updateDoc(doc(db, "accounts", acc.id), { orden: idx });
-      }
+    reordered.forEach((acc, idx) => {
+      batch.update(doc(db, "accounts", acc.id), { orden: idx });
     });
+
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al reordenar cuentas", "error");
+    }
   };
   
   // Modals state
@@ -107,9 +105,10 @@ export default function CuentasPage() {
       setNewName("");
       setNewBalance("");
       setIsCreateOpen(false);
+      showToast("Cuenta creada", "success");
     } catch (err) {
       console.error(err);
-      alert("Error al crear cuenta");
+      showToast("Error al crear cuenta", "error");
     } finally {
       setCreateLoading(false);
     }
@@ -131,9 +130,10 @@ export default function CuentasPage() {
         saldo: parseFloat(editBalance) || 0
       });
       setEditingAccount(null);
+      showToast("Cuenta actualizada", "success");
     } catch (err) {
       console.error(err);
-      alert("Error al actualizar cuenta");
+      showToast("Error al actualizar cuenta", "error");
     } finally {
       setEditLoading(false);
     }
@@ -141,14 +141,21 @@ export default function CuentasPage() {
 
   const handleDeleteAccount = async () => {
     if (!editingAccount) return;
-    if (!confirm(`¿Estás seguro de eliminar la cuenta "${editingAccount.nombre}"?\nEsto no borrará tus transacciones históricas, pero el balance de dinero disponible podría recalcularse.`)) return;
+    const confirmed = await confirmAction({
+      title: `Eliminar "${editingAccount.nombre}"`,
+      message: "Esto no borrará tus transacciones históricas, pero el balance de dinero disponible se recalculará.",
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setEditLoading(true);
     try {
       await deleteDoc(doc(db, "accounts", editingAccount.id));
       setEditingAccount(null);
+      showToast("Cuenta eliminada", "success");
     } catch (err) {
       console.error(err);
-      alert("Error al eliminar cuenta");
+      showToast("Error al eliminar cuenta", "error");
     } finally {
       setEditLoading(false);
     }
@@ -189,7 +196,7 @@ export default function CuentasPage() {
               
               <div className="flex flex-col items-end relative z-10 gap-1">
                  <p className="text-xl font-black text-foreground tracking-tight">{formatAmount(acc.saldo || 0)}</p>
-                 <div className="flex items-center gap-1 opacity-60 md:opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity">
+                 <div className="flex items-center gap-1 opacity-85 md:opacity-0 md:group-hover:opacity-100 hover:opacity-100 transition-opacity">
                    <button 
                      onClick={() => moveAccount(accounts.indexOf(acc), 'up')}
                      disabled={accounts.indexOf(acc) === 0}

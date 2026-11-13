@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebase-admin";
 import { generateFinancialAnalysis } from "@/services/groq";
+import { getAuthenticatedUserId } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, month, year } = await request.json();
-
+    const userId = await getAuthenticatedUserId(request);
     if (!userId) {
-      return NextResponse.json({ error: "User ID requerido" }, { status: 400 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+
+    const { month, year } = await request.json();
 
     // 1. Fetch user accounts
     const accountsSnap = await adminDb.collection("accounts")

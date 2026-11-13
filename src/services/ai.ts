@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 export async function analyzeReceipt(imageData: string, isBase64 = false) {
   const systemPrompt = `Eres un asistente de OCR experto en finanzas. 
 Tu única tarea es analizar la imagen de una factura/ticket y extraer los siguientes datos.
@@ -22,9 +20,9 @@ Si no logras deducir nada, devuelve {"error": "No se pudo leer"}.`;
 
     const body = {
       models: [
-        "nvidia/nemotron-nano-12b-v2-vl:free",
-        "mistralai/mistral-small-3.1-24b-instruct:free",
-        "google/gemma-3-27b-it:free"
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
+        "nvidia/nemotron-3.5-super-vl:free"
       ],
       route: "fallback",
       messages: [
@@ -63,12 +61,22 @@ Si no logras deducir nada, devuelve {"error": "No se pudo leer"}.`;
     
     try {
       const cleanedContent = content.replace(/```json\n?|\n?```/g, "").trim();
-      return JSON.parse(cleanedContent);
+      try {
+        return JSON.parse(cleanedContent);
+      } catch {
+        const start = cleanedContent.indexOf("{");
+        const end = cleanedContent.lastIndexOf("}");
+        if (start !== -1 && end > start) {
+          return JSON.parse(cleanedContent.slice(start, end + 1));
+        }
+        throw new Error("Invalid JSON");
+      }
     } catch {
       return { error: "Formato de respuesta inválido.", raw: content };
     }
-  } catch (error: any) {
-    console.error("OpenRouter Fetch API Error:", error.message);
-    return { error: error.message };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("OpenRouter Fetch API Error:", message);
+    return { error: message };
   }
 }

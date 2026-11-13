@@ -5,7 +5,8 @@ import { useAccounts } from "@/hooks/useFirestore";
 import { db, auth } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, increment, writeBatch, Timestamp } from "firebase/firestore";
 import { X, ArrowRight, Loader2, Calendar, Mic, Square } from "lucide-react";
-import { getApiUrl } from "@/lib/api";
+import { authFetch } from "@/lib/api";
+import { useApp } from "@/context/AppContext";
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface TransferModalProps {
 
 export default function TransferModal({ isOpen, onClose, initialData = null }: TransferModalProps) {
   const { accounts } = useAccounts();
+  const { showToast } = useApp();
   const [amount, setAmount] = useState("");
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
@@ -61,7 +63,7 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
       setIsRecording(true);
     } catch (err: any) {
       console.error(err);
-      alert("No se pudo acceder al micrófono. Por favor concede permisos.");
+      showToast("No se pudo acceder al micrófono. Por favor concede permisos.", "error");
     }
   };
 
@@ -79,9 +81,8 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
     try {
       const formData = new FormData();
       formData.append("file", blob, "voice.webm");
-      formData.append("userId", auth.currentUser.uid);
 
-      const res = await fetch(getApiUrl("/api/voice-input"), {
+      const res = await authFetch("/api/voice-input", {
         method: "POST",
         body: formData,
       });
@@ -166,7 +167,7 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) {
-      alert("Sesión expirada. Por favor, recarga la página.");
+      showToast("Sesión expirada. Por favor, recarga la página.", "error");
       return;
     }
     if (!amount || !fromId || !toId || fromId === toId) return;
@@ -205,10 +206,11 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
       setAmount("");
       setFromId("");
       setToId("");
+      showToast("Transferencia registrada", "success");
       onClose();
     } catch (error) {
       console.error(error);
-      alert("Error al procesar la transferencia");
+      showToast("Error al procesar la transferencia", "error");
     } finally {
       setLoading(false);
     }

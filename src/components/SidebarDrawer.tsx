@@ -2,10 +2,11 @@
 
 import { useApp } from "@/context/AppContext";
 import { auth } from "@/lib/firebase";
+import { signOutAll } from "@/hooks/useAuth";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   Home, List, Wallet, Settings, TrendingUp, DollarSign, Target, 
-  Moon, Eye, EyeOff, LogOut, X, User
+  Moon, Eye, EyeOff, LogOut, X, Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,16 +19,25 @@ export default function SidebarDrawer() {
     isDarkMode, 
     toggleDarkMode, 
     hideAmounts, 
-    toggleHideAmounts 
+    toggleHideAmounts,
+    reduceMotion,
+    toggleReduceMotion,
+    confirmAction
   } = useApp();
   
   const pathname = usePathname();
   const router = useRouter();
 
   const handleLogout = async () => {
-    if (confirm("¿Cerrar sesión?")) {
+    const confirmed = await confirmAction({
+      title: "Cerrar sesión",
+      message: "¿Seguro que deseas salir de tu cuenta en este dispositivo?",
+      confirmText: "Cerrar sesión",
+      destructive: true,
+    });
+    if (confirmed) {
       closeDrawer();
-      await auth.signOut();
+      await signOutAll();
       router.push('/login');
     }
   };
@@ -149,6 +159,26 @@ export default function SidebarDrawer() {
                   <span 
                     className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all shadow-sm ${
                       hideAmounts ? "left-6" : "left-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Reduce Motion / Lightweight 3D Toggle */}
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-3 text-foreground/60">
+                  <Sparkles size={16} />
+                  <span className="text-xs font-extrabold tracking-tight">Modo ligero (sin 3D)</span>
+                </div>
+                <button
+                  onClick={toggleReduceMotion}
+                  className={`w-11 h-6 rounded-full transition-all relative ${
+                    reduceMotion ? "bg-indigo-600" : "bg-gray-200 dark:bg-gray-700"
+                  }`}
+                >
+                  <span 
+                    className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all shadow-sm ${
+                      reduceMotion ? "left-6" : "left-1"
                     }`}
                   />
                 </button>

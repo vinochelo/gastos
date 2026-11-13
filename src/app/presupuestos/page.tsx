@@ -30,7 +30,7 @@ export default function PresupuestosPage() {
   const [spent, setSpent] = useState<SpentSum>({});
   const [loading, setLoading] = useState(true);
   const { config } = useUserConfig();
-  const { openDrawer, formatAmount } = useApp();
+  const { openDrawer, formatAmount, showToast, confirmAction } = useApp();
   const router = useRouter();
 
   // Modal states
@@ -160,18 +160,25 @@ export default function PresupuestosPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Deseas eliminar este presupuesto mensual?")) return;
+    const confirmed = await confirmAction({
+      title: "Eliminar presupuesto",
+      message: "¿Deseas eliminar este presupuesto mensual?",
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteDoc(doc(db, "budgets", id));
+      showToast("Presupuesto eliminado", "success");
     } catch (err) {
       console.error(err);
-      alert("Error al eliminar");
+      showToast("Error al eliminar", "error");
     }
   };
 
   return (
     <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="fixed top-0 left-0 right-0 h-1 z-50 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+      <div className="fixed top-0 left-0 right-0 h-1 z-50 bg-gradient-to-r from-indigo-500 via-teal-500 to-emerald-500" />
       
       {/* Header */}
       <div className="flex items-center justify-between py-2 border-b border-border/20">

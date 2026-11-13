@@ -45,7 +45,7 @@ const TEMPLATES: Record<string, TemplateOption> = {
 export default function MetasPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
-  const { openDrawer, formatAmount } = useApp();
+  const { openDrawer, formatAmount, showToast, confirmAction } = useApp();
   const router = useRouter();
 
   // Create Goal modal state
@@ -148,7 +148,7 @@ export default function MetasPage() {
 
     const amountNum = parseFloat(fundAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      alert("Monto inválido");
+      showToast("Monto inválido", "error");
       return;
     }
 
@@ -160,21 +160,29 @@ export default function MetasPage() {
       });
       setSavingGoal(null);
       setFundAmount("");
+      showToast("Fondos añadidos", "success");
     } catch (err) {
       console.error(err);
-      alert("Error al añadir fondos");
+      showToast("Error al añadir fondos", "error");
     } finally {
       setFundLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta meta de ahorro?")) return;
+    const confirmed = await confirmAction({
+      title: "Eliminar meta",
+      message: "¿Estás seguro de eliminar esta meta de ahorro?",
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteDoc(doc(db, "goals", id));
+      showToast("Meta eliminada", "success");
     } catch (err) {
       console.error(err);
-      alert("Error al eliminar");
+      showToast("Error al eliminar", "error");
     }
   };
 

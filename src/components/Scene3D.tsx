@@ -77,7 +77,7 @@ export default function Scene3D() {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
       <div className="absolute inset-0 bg-gradient-to-br from-teal-950/15 via-transparent to-emerald-950/15" />
-      <Canvas camera={{ position: [0, 0, 10], fov: 50 }}>
+      <Canvas camera={{ position: [0, 0, 10], fov: 50 }} dpr={[1, 1.5]} gl={{ powerPreference: 'low-power', antialias: false }}>
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 10, 5]} intensity={0.8} />
         <pointLight position={[-10, -10, -5]} intensity={0.4} color="#0d9ca4" />

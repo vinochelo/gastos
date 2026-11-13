@@ -1,1 +1,67 @@
-rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if request.auth != null; } } }
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    function willBeDocOwner() {
+      return isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /accounts/{docId} {
+      allow read, delete: if isDocOwner();
+      allow create: if willBeDocOwner();
+      allow update: if isDocOwner() && willBeDocOwner();
+    }
+
+    match /transactions/{docId} {
+      allow read, delete: if isDocOwner();
+      allow create: if willBeDocOwner();
+      allow update: if isDocOwner() && willBeDocOwner();
+    }
+
+    match /budgets/{docId} {
+      allow read, delete: if isDocOwner();
+      allow create: if willBeDocOwner();
+      allow update: if isDocOwner() && willBeDocOwner();
+    }
+
+    match /debts/{docId} {
+      allow read, delete: if isDocOwner();
+      allow create: if willBeDocOwner();
+      allow update: if isDocOwner() && willBeDocOwner();
+    }
+
+    match /goals/{docId} {
+      allow read, delete: if isDocOwner();
+      allow create: if willBeDocOwner();
+      allow update: if isDocOwner() && willBeDocOwner();
+    }
+
+    // Server-only collections managed via Firebase Admin SDK
+    match /linkingCodes/{docId} {
+      allow read, write: if false;
+    }
+
+    match /mobileAuthCodes/{docId} {
+      allow read, write: if false;
+    }
+
+    match /pendingTransactions/{docId} {
+      allow read, write: if false;
+    }
+  }
+}

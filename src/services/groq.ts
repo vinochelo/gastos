@@ -3,17 +3,123 @@ import fs from "fs";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-export async function transcribeAudio(filePath: string) {
-  const transcription = await groq.audio.transcriptions.create({
-    file: fs.createReadStream(filePath),
-    model: "whisper-large-v3",
-    language: "es",
-    response_format: "json",
-  });
-  return transcription.text;
+const COMPLEX_TEXT_MODELS = [
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "qwen/qwen3.8-27b",
+];
+
+const FAST_TEXT_MODELS = [
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
+  "qwen/qwen3.8-27b",
+];
+
+function getModelQueue(preferFast = false): string[] {
+  const base = preferFast ? FAST_TEXT_MODELS : COMPLEX_TEXT_MODELS;
+  return Array.from(
+    new Set(
+      [process.env.GROQ_MODEL, ...base].filter(
+        (m): m is string => Boolean(m && m.trim())
+      )
+    )
+  );
 }
 
-export async function parseTransaction(text: string, accountNames: string[], userExpCats?: string[], userIncCats?: string[]) {
+const AUDIO_MODELS = ["whisper-large-v3", "whisper-large-v3-turbo"];
+
+type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+async function createChatCompletionWithFallback(options: {
+  messages: ChatMessage[];
+  temperature?: number;
+  max_tokens?: number;
+  jsonMode?: boolean;
+  preferFast?: boolean;
+}) {
+  let lastError: unknown;
+  const models = getModelQueue(options.preferFast);
+
+  for (const model of models) {
+    try {
+      return await groq.chat.completions.create({
+        messages: options.messages,
+        model,
+        temperature: options.temperature ?? 0.2,
+        ...(options.max_tokens ? { max_tokens: options.max_tokens } : {}),
+        ...(options.jsonMode ? { response_format: { type: "json_object" as const } } : {}),
+      });
+    } catch (error) {
+      lastError = error;
+      console.warn(`Groq model "${model}" failed, trying fallback:`, error);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("All configured Groq text models failed.");
+}
+
+function parseJsonSafe<T>(raw: string, fallback: T): T {
+  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1)) as T;
+      } catch {
+        return fallback;
+      }
+    }
+    return fallback;
+  }
+}
+
+export async function transcribeAudio(filePath: string) {
+  let lastError: unknown;
+  for (const model of AUDIO_MODELS) {
+    try {
+      const transcription = await groq.audio.transcriptions.create({
+        file: fs.createReadStream(filePath),
+        model,
+        language: "es",
+        response_format: "json",
+      });
+      return transcription.text;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Groq audio model "${model}" failed, trying fallback:`, error);
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("All Groq audio transcription models failed.");
+}
+
+export interface ParsedTransactionItem {
+  tipo: string;
+  monto?: number;
+  montoAnterior?: number;
+  categoria?: string;
+  subcategoria?: string;
+  categoriaAnterior?: string;
+  cuenta?: string;
+  cuentaAnterior?: string;
+  fromCuenta?: string;
+  toCuenta?: string;
+  descripcion?: string;
+  fecha?: string;
+  nuevoTipo?: "gasto" | "ingreso";
+}
+
+export interface ParsedTransactionResponse {
+  items: ParsedTransactionItem[];
+}
+
+export async function parseTransaction(text: string, accountNames: string[], userExpCats?: string[], userIncCats?: string[]): Promise<ParsedTransactionResponse> {
   const expCats = userExpCats?.length ? userExpCats : ["Casa", "Cine", "Comida", "Compras Ecommerce", "Comunicaciones", "Deportes", "Costos Bancarios", "Desayunos", "Restaurantes", "Entretenimiento", "Higiene", "IVA Electronico", "Juegos", "Mascotas", "Regalos", "Ropa", "Salud", "Servicios Basicos", "Streaming", "Taxi/Uber", "Transporte"];
   const incCats = userIncCats?.length ? userIncCats : ["Salario", "Inversion", "Regalo", "Otro"];
   const now = new Date();
@@ -91,6 +197,8 @@ Estructura exacta:
       "categoriaAnterior": "categoría incorrecta anterior que se quiere cambiar (ej: 'era comida no cine' -> categoria: 'Comida', categoriaAnterior: 'Cine')",
       "cuenta": "nombre de la cuenta nueva o detectada",
       "cuentaAnterior": "nombre de la cuenta incorrecta anterior que se quiere cambiar (ej: 'era efectivo no banco' -> cuenta: 'Efectivo', cuentaAnterior: 'Cuenta Bancaria')",
+      "fromCuenta": "SOLO para tipo 'transferencia': nombre de la cuenta de origen",
+      "toCuenta": "SOLO para tipo 'transferencia': nombre de la cuenta de destino",
       "descripcion": "concepto limpio de la transacción en singular (ej: 'pan', 'taxi', 'almuerzo', 'salario'), excluyendo palabras de acción como 'añade', 'gasté', 'pagué', 'ingresa', 'un dólar', 'pesos' o similares",
       "fecha": "YYYY-MM-DD (solo si menciona fecha específica, si no omite el campo)",
       "nuevoTipo": "gasto | ingreso (SOLO para tipo 'editar', si el usuario quiere cambiar el tipo de la transacción)"
@@ -107,21 +215,19 @@ Si el mensaje es solo un saludo o no puedes entender qué quiere hacer, devuelve
 "${text}"
 `;
 
-  const completion = await groq.chat.completions.create({
+  const completion = await createChatCompletionWithFallback({
     messages: [
       { role: "system", content: "Eres un parser de intenciones financieras. Solo devuelves JSON puro y válido." },
       { role: "user", content: prompt }
     ],
-    model: "llama-3.3-70b-versatile",
-    response_format: { type: "json_object" },
     temperature: 0.2,
+    jsonMode: true,
   });
 
-  try {
-    return JSON.parse(completion.choices[0].message.content || '{"items": []}');
-  } catch {
-    return { items: [] };
-  }
+  return parseJsonSafe<ParsedTransactionResponse>(
+    completion.choices[0]?.message?.content || '{"items": []}',
+    { items: [] }
+  );
 }
 
 export function getHelpMessage(): string {
@@ -162,7 +268,12 @@ Puedes enviarme notas de voz, fotos de facturas o texto. Aquí tienes los comand
 • Escribe "link" o "web" para obtener el enlace de acceso directo.`;
 }
 
-export async function editPendingWithAI(oldData: any, userInput: string, userExpCats?: string[], userIncCats?: string[]) {
+export async function editPendingWithAI<T extends Record<string, unknown>>(
+  oldData: T,
+  userInput: string,
+  userExpCats?: string[],
+  userIncCats?: string[]
+): Promise<T> {
   const systemPrompt = `Eres un asistente AI financiero. 
 Tu única tarea es aplicar las modificaciones pedidas por el usuario sobre un JSON existente.
 Modifica los valores o categorías según la orden, respetando los datos originales que NO pide cambiar.
@@ -179,16 +290,15 @@ INSTRUCCIÓN: "${userInput}"
 DEVUELVE ÚNICAMENTE EL NUEVO JSON MODIFICADO. NO incluyas saludos ni explicaciones extras, SOLO EL JSON VÁLIDO.`;
 
   try {
-    const chatCompletion = await groq.chat.completions.create({
+    const chatCompletion = await createChatCompletionWithFallback({
       messages: [{ role: "system", content: systemPrompt }],
-      model: "llama-3.3-70b-versatile",
       temperature: 0.1,
+      jsonMode: true,
+      preferFast: true,
     });
-    
-    let content = chatCompletion.choices[0]?.message?.content || "";
-    content = content.replace(/```json\n?|\n?```/g, "").trim();
-    
-    return JSON.parse(content);
+
+    const content = chatCompletion.choices[0]?.message?.content || "";
+    return parseJsonSafe(content, oldData);
   } catch (error) {
     console.error("Error editing pending transaction:", error);
     return oldData;
@@ -266,12 +376,11 @@ ${txListText || "No hay transacciones registradas este mes."}
 Genera el análisis financiero:
 `;
 
-    const chatCompletion = await groq.chat.completions.create({
+    const chatCompletion = await createChatCompletionWithFallback({
       messages: [
         { role: "system", content: "Eres un asesor financiero inteligente experto en finanzas personales. Devuelves respuestas directas en Markdown." },
         { role: "user", content: prompt }
       ],
-      model: "llama-3.3-70b-versatile",
       temperature: 0.7,
       max_tokens: 1500
     });

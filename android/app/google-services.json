@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "505851925373-3g8v0g4f8kl0cn1ffadd2et265ove42s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gestordegastos.app",
+            "certificate_hash": "01eac9acc49b866ee8436aefe8523a58cd553249"
+          }
+        },
+        {
           "client_id": "505851925373-rn8c8fnrjnht0qllfsldrnlnjoihijpf.apps.googleusercontent.com",
           "client_type": 3
         }

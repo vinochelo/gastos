@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Telegraf } from "telegraf";
+import { Telegraf, type Context } from "telegraf";
 import admin from "firebase-admin";
 import { adminDb } from "@/lib/firebase-admin";
 import { transcribeAudio, parseTransaction, getHelpMessage, editPendingWithAI, generateFinancialAnalysis } from "@/services/groq";
@@ -10,6 +10,50 @@ import path from "path";
 import os from "os";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || "");
+
+function splitTelegramMessage(text: string, maxLength = 4000): string[] {
+  if (text.length <= maxLength) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > maxLength) {
+    let splitIdx = remaining.lastIndexOf("\n", maxLength);
+    if (splitIdx <= 0) splitIdx = maxLength;
+    chunks.push(remaining.slice(0, splitIdx));
+    remaining = remaining.slice(splitIdx).trimStart();
+  }
+  if (remaining.length > 0) chunks.push(remaining);
+  return chunks;
+}
+
+type TelegramReplyExtra = Parameters<Context["reply"]>[1];
+type TelegramContext = { reply: Context["reply"] };
+
+async function safeReply(
+  ctx: TelegramContext,
+  text: string,
+  extra?: TelegramReplyExtra
+) {
+  const chunks = splitTelegramMessage(text);
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkExtra: TelegramReplyExtra | undefined =
+      i === chunks.length - 1
+        ? extra
+        : extra?.parse_mode
+        ? { parse_mode: extra.parse_mode }
+        : undefined;
+    try {
+      await ctx.reply(chunks[i], chunkExtra);
+    } catch (err) {
+      if (chunkExtra?.parse_mode) {
+        const fallbackExtra = { ...chunkExtra };
+        delete fallbackExtra.parse_mode;
+        await ctx.reply(chunks[i], Object.keys(fallbackExtra).length ? fallbackExtra : undefined);
+      } else {
+        throw err;
+      }
+    }
+  }
+}
 
 function levenshteinDistance(s1: string, s2: string): number {
   const len1 = s1.length;
@@ -40,7 +84,10 @@ function cleanAccountName(name: string): string {
     .replace(/[^a-z0-9]/g, ""); // Keep only letters and numbers
 }
 
-function findAccount(accountQuery: string | undefined, accountsList: any[]): any | null {
+function findAccount(
+  accountQuery: string | undefined,
+  accountsList: admin.firestore.QueryDocumentSnapshot[]
+): admin.firestore.QueryDocumentSnapshot | null {
   if (!accountQuery) return null;
   const cleanQuery = cleanAccountName(accountQuery);
   if (!cleanQuery) return null;
@@ -81,13 +128,13 @@ function findAccount(accountQuery: string | undefined, accountsList: any[]): any
   return null;
 }
 
-async function handlePendingEdit(ctx: any, userId: string, pendingId: string, userInput: string) {
-  ctx.reply("✏️ Aplicando cambio...");
+async function handlePendingEdit(ctx: TelegramContext, userId: string, pendingId: string, userInput: string) {
+  await safeReply(ctx, "✏️ Aplicando cambio...");
   const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
   const userRef = adminDb.collection("users").doc(userId);
   if (!pendingDoc.exists) {
      await userRef.update({ telegramState: admin.firestore.FieldValue.delete() });
-     return ctx.reply("❌ La transacción expiró o ya fue guardada.");
+     return safeReply(ctx, "❌ La transacción expiró o ya fue guardada.");
   }
   const oldData = pendingDoc.data()!;
   
@@ -108,7 +155,8 @@ async function handlePendingEdit(ctx: any, userId: string, pendingId: string, us
 
   const message = `📝 *Nuevos datos detectados:*\n\n💰 Monto: $${newData.monto || oldData.monto}\n📂 Categoría: ${newData.categoria || oldData.categoria}\n📄 Descripción: ${newData.descripcion || oldData.descripcion}\n\n¿Qué deseas hacer?`;
 
-  ctx.reply(message, {
+  await safeReply(ctx, message, {
+    parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
         [
@@ -123,15 +171,15 @@ async function handlePendingEdit(ctx: any, userId: string, pendingId: string, us
   });
 }
 
-async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: any) => Promise<unknown> }, userId: string, userInput: string, isAudio = false) {
+async function processIncomingTransaction(ctx: TelegramContext, userId: string, userInput: string, isAudio = false) {
   try {
     const userDoc = await adminDb.collection("users").doc(userId).get();
     const userData = userDoc.data() || {};
     const accountsSnap = await adminDb.collection("accounts").where("userId", "==", userId).get();
     const accountNames = accountsSnap.docs.map(d => d.data().nombre);
 
-    if (isAudio) ctx.reply("🤖 Analizando...");
-    else ctx.reply("🤖 Procesando...");
+    if (isAudio) await safeReply(ctx, "🤖 Analizando...");
+    else await safeReply(ctx, "🤖 Procesando...");
 
     const result = await parseTransaction(
       userInput, 
@@ -141,7 +189,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
     );
 
     if (!result.items || result.items.length === 0) {
-      return ctx.reply("🤔 No entendí. " + getHelpMessage());
+      return await safeReply(ctx, "🤔 No entendí.\n\n" + getHelpMessage(), { parse_mode: "Markdown" });
     }
 
     const batch = adminDb.batch();
@@ -149,11 +197,11 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
 
     for (const item of result.items) {
       if (item.tipo === "ayuda") {
-        return ctx.reply(getHelpMessage());
+        return await safeReply(ctx, getHelpMessage(), { parse_mode: "Markdown" });
       }
       
       if (item.tipo === "enlace_web") {
-        return ctx.reply("🌐 *Accede a la aplicación web:*\n\nhttps://gastos-delta-pearl.vercel.app/");
+        return await safeReply(ctx, "🌐 *Accede a la aplicación web:*\n\nhttps://gastos-delta-pearl.vercel.app/", { parse_mode: "Markdown" });
       }
       
       const requiresMonto = item.tipo === "gasto" || item.tipo === "ingreso" || item.tipo === "transferencia";
@@ -182,9 +230,10 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         });
 
         if (!match && item.categoriaAnterior) {
+          const catAnteriorLower = item.categoriaAnterior.toLowerCase();
           match = recentSnap.docs.find(doc => {
             const data = doc.data();
-            return data.categoria?.toLowerCase() === item.categoriaAnterior.toLowerCase();
+            return data.categoria?.toLowerCase() === catAnteriorLower;
           });
         }
 
@@ -208,17 +257,21 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         }
       } 
       else if (item.tipo === "transferencia") {
-        const fromDoc = findAccount(item.fromCuenta, accountsSnap.docs);
-        const toDoc = findAccount(item.toCuenta, accountsSnap.docs);
-        if (fromDoc && toDoc) {
+        const fromDoc = findAccount(item.fromCuenta || item.cuentaAnterior, accountsSnap.docs);
+        const toDoc = findAccount(item.toCuenta || item.cuenta, accountsSnap.docs);
+        if (fromDoc && toDoc && fromDoc.id !== toDoc.id) {
           batch.set(adminDb.collection("transactions").doc(), {
             userId, monto, tipo: "transferencia", fromId: fromDoc.id, toId: toDoc.id,
+            fromNombre: fromDoc.data().nombre, toNombre: toDoc.data().nombre,
+            categoria: "Transferencia",
             timestamp, createdAt: admin.firestore.FieldValue.serverTimestamp(), fuente: "telegram",
-            descripcion: item.descripcion || "Transferencia"
+            descripcion: item.descripcion || `Transferencia: ${fromDoc.data().nombre} → ${toDoc.data().nombre}`
           });
           batch.update(fromDoc.ref, { saldo: admin.firestore.FieldValue.increment(-monto) });
           batch.update(toDoc.ref, { saldo: admin.firestore.FieldValue.increment(monto) });
           results.push(`✅ Trf: $${monto} de ${fromDoc.data().nombre} a ${toDoc.data().nombre}.`);
+        } else {
+          results.push(`⚠️ No pude identificar cuentas válidas de origen y destino para la transferencia.`);
         }
       } else if (item.tipo === "consulta_saldo") {
         const cuentaBuscada = item.cuenta?.toLowerCase();
@@ -317,7 +370,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
             mensaje = `❌ No encontré la cuenta "${item.cuenta}".`;
           }
         }
-        ctx.reply(mensaje, { parse_mode: "Markdown" });
+        await safeReply(ctx, mensaje, { parse_mode: "Markdown" });
         return;
       } else if (item.tipo === "consulta_gasto_categoria") {
         const catBuscada = item.categoria;
@@ -344,7 +397,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
               count++;
             }
           }
-          ctx.reply(`📊 GASTOS EN ${catBuscada.toUpperCase()} (${mesActual}):\n\n💰 Total: $${total.toFixed(2)}\n📝 Transacciones: ${count}`);
+          await safeReply(ctx, `📊 GASTOS EN ${catBuscada.toUpperCase()} (${mesActual}):\n\n💰 Total: $${total.toFixed(2)}\n📝 Transacciones: ${count}`);
           return;
         } else {
           const porCategoria: Record<string, number> = {};
@@ -359,11 +412,11 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
           }
           const totalGastos = Object.values(porCategoria).reduce((a, b) => a + b, 0);
           msg += `\n💰 TOTAL: $${totalGastos.toFixed(2)}`;
-          ctx.reply(msg);
+          await safeReply(ctx, msg);
           return;
         }
       } else if (item.tipo === "reverso") {
-        const montoReverso = Math.abs(item.monto);
+        const requestedMonto = item.monto ? Math.abs(item.monto) : 0;
         const cuentaBuscada = item.cuenta?.toLowerCase();
         
         const recentSnap = await adminDb.collection("transactions")
@@ -376,34 +429,45 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         
         for (const doc of recentSnap.docs) {
           const data = doc.data();
-          const matchMonto = Math.abs(data.monto) === montoReverso;
+          const txMonto = Math.abs(data.monto || 0);
+          const matchMonto = !requestedMonto || txMonto === requestedMonto;
           const matchedAcc = cuentaBuscada ? findAccount(cuentaBuscada, accountsSnap.docs) : null;
           const matchCuenta = !cuentaBuscada || 
             (data.accountId && matchedAcc && matchedAcc.id === data.accountId);
           
           if (matchMonto && matchCuenta) {
-            const isGasto = data.tipo === "gasto";
-            const multReverso = isGasto ? 1 : -1;
             const descripcionReverso = data.descripcion && data.descripcion !== data.categoria ? ` - ${data.descripcion}` : "";
-            
-            if (data.accountId) {
-              const accountDocMatch = accountsSnap.docs.find(a => a.id === data.accountId);
-              if (accountDocMatch) {
-                const currentSaldo = accountDocMatch.data().saldo || 0;
-                const newSaldo = currentSaldo + (multReverso * montoReverso);
-                await adminDb.collection("accounts").doc(data.accountId).update({ saldo: newSaldo });
-                results.push(`↩️ REVERSADO: $${montoReverso} en ${accountDocMatch.data().nombre}${descripcionReverso} (saldo: $${newSaldo.toFixed(2)})`);
+
+            if (data.tipo === "transferencia") {
+              if (data.fromId) {
+                batch.update(adminDb.collection("accounts").doc(data.fromId), { saldo: admin.firestore.FieldValue.increment(txMonto) });
+              }
+              if (data.toId) {
+                batch.update(adminDb.collection("accounts").doc(data.toId), { saldo: admin.firestore.FieldValue.increment(-txMonto) });
+              }
+              results.push(`↩️ REVERSADA transferencia: $${txMonto}${descripcionReverso}`);
+            } else {
+              const isGasto = data.tipo === "gasto";
+              const multReverso = isGasto ? 1 : -1;
+              if (data.accountId) {
+                const accountDocMatch = accountsSnap.docs.find(a => a.id === data.accountId);
+                if (accountDocMatch) {
+                  const currentSaldo = accountDocMatch.data().saldo || 0;
+                  const newSaldo = currentSaldo + (multReverso * txMonto);
+                  batch.update(adminDb.collection("accounts").doc(data.accountId), { saldo: admin.firestore.FieldValue.increment(multReverso * txMonto) });
+                  results.push(`↩️ REVERSADO: $${txMonto} en ${accountDocMatch.data().nombre}${descripcionReverso} (saldo: $${newSaldo.toFixed(2)})`);
+                }
               }
             }
             
-            await adminDb.collection("transactions").doc(doc.id).delete();
+            batch.delete(adminDb.collection("transactions").doc(doc.id));
             matchFound = true;
             break;
           }
         }
         
         if (!matchFound) {
-          results.push(`⚠️ No encontré transacción de $${montoReverso} para revertir.`);
+          results.push(requestedMonto ? `⚠️ No encontré transacción de $${requestedMonto} para revertir.` : `⚠️ No encontré ninguna transacción reciente para revertir.`);
         }
       } else if (item.tipo === "editar") {
         const recentSnap = await adminDb.collection("transactions")
@@ -438,7 +502,8 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
         
         // Fallback 1: Si no hay match con criterios anteriores pero sí con el monto especificado
         if (!matchDoc && item.monto) {
-          matchDoc = recentSnap.docs.find(doc => Math.abs(doc.data().monto) === Math.abs(item.monto));
+          const targetMonto = Math.abs(item.monto);
+          matchDoc = recentSnap.docs.find(doc => Math.abs(doc.data().monto) === targetMonto);
         }
 
         // Fallback 2: La más reciente
@@ -498,7 +563,7 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
           }
 
           // 3. Actualizar la transacción
-          const updates: Record<string, any> = {
+          const updates: Record<string, unknown> = {
             monto: finalMonto,
             tipo: finalTipo,
             categoria: finalCategoria,
@@ -516,9 +581,9 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
       } else {
         let accountDoc = findAccount(item.cuenta, accountsSnap.docs);
         
-        // Si no se指定cuenta o no matchea, buscar "Efectivo"
+        // Si no se especifica cuenta o no matchea, buscar "Efectivo"
         if (!accountDoc) {
-           accountDoc = accountsSnap.docs.find(d => d.data().nombre.toLowerCase().includes("efectivo"));
+          accountDoc = accountsSnap.docs.find(d => d.data().nombre.toLowerCase().includes("efectivo")) ?? null;
         }
 
         // Si no hay "Efectivo", usar la primera cuenta disponible
@@ -547,13 +612,13 @@ async function processIncomingTransaction(ctx: { reply: (msg: string, extra?: an
 
     if (results.length > 0) {
       await batch.commit();
-      ctx.reply(`✅ REPORTE:\n${results.join("\n")}`);
+      await safeReply(ctx, `✅ REPORTE:\n${results.join("\n")}`);
     } else {
-      ctx.reply("❌ Error: Verifica cuentas o montos.");
+      await safeReply(ctx, "❌ Error: Verifica cuentas o montos.");
     }
   } catch (error) {
-    console.error(error);
-    ctx.reply("❌ Error en el procesamiento. Verifica que el bot esté configurado.");
+    console.error("Error in processIncomingTransaction:", error);
+    await safeReply(ctx, "❌ Error en el procesamiento. Verifica la configuración de IA del bot.");
   }
 }
 
@@ -611,10 +676,10 @@ bot.command("vincular", async (ctx) => {
 
     await codeDoc.ref.update({ used: true });
 
-    ctx.reply("✅ ¡Cuenta vinculada exitosamente!\n\nYa puedes registrar gastos directamente desde Telegram.");
+    await safeReply(ctx, "✅ ¡Cuenta vinculada exitosamente!\n\nYa puedes registrar gastos directamente desde Telegram.");
   } catch (error) {
     console.error(error);
-    ctx.reply("❌ Error al vincular. Intenta de nuevo.");
+    await safeReply(ctx, "❌ Error al vincular. Intenta de nuevo.");
   }
 });
 
@@ -622,7 +687,7 @@ bot.on("text", async (ctx) => {
   const telegramId = ctx.from.id.toString();
   try {
     const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
-    if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
+    if (userSnap.empty) return await safeReply(ctx, "⚠️ Vincula tu cuenta con /vincular [código].");
     const userData = userSnap.docs[0].data();
     if (userData.telegramState && userData.telegramState.startsWith("editing_")) {
       const pendingId = userData.telegramState.replace("editing_", "");
@@ -630,7 +695,10 @@ bot.on("text", async (ctx) => {
       return;
     }
     await processIncomingTransaction(ctx, userSnap.docs[0].id, ctx.message.text);
-  } catch { ctx.reply("❌ Error."); }
+  } catch (err) {
+    console.error("Error handling text message:", err);
+    await safeReply(ctx, "❌ Error al procesar tu mensaje.");
+  }
 });
 
 bot.on("voice", async (ctx) => {
@@ -638,9 +706,9 @@ bot.on("voice", async (ctx) => {
   const telegramId = ctx.from.id.toString();
   try {
      const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
-     if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
+     if (userSnap.empty) return await safeReply(ctx, "⚠️ Vincula tu cuenta con /vincular [código].");
      const userId = userSnap.docs[0].id;
-     ctx.reply("🎤 Escuchando...");
+     await safeReply(ctx, "🎤 Escuchando...");
      const fileLink = await bot.telegram.getFileLink(fileId);
      const tempPath = path.join(os.tmpdir(), `${fileId}.ogg`);
      const response = await axios({ url: fileLink.toString(), responseType: 'stream' });
@@ -651,7 +719,7 @@ bot.on("voice", async (ctx) => {
        writer.on('error', (err) => reject(err));
      });
      const transcription = await transcribeAudio(tempPath);
-     ctx.reply(`📝 "${transcription}"`);
+     await safeReply(ctx, `📝 "${transcription}"`);
      
      const userData = userSnap.docs[0].data();
      if (userData.telegramState && userData.telegramState.startsWith("editing_")) {
@@ -661,14 +729,17 @@ bot.on("voice", async (ctx) => {
        await processIncomingTransaction(ctx, userId, transcription, true);
      }
      try { fs.unlinkSync(tempPath); } catch { /* ignore */ }
-   } catch { ctx.reply("❌ Error de audio."); }
+   } catch (err) {
+     console.error("Error handling voice message:", err);
+     await safeReply(ctx, "❌ Error de audio.");
+   }
 });
 
 bot.on("photo", async (ctx) => {
   const telegramId = ctx.from.id.toString();
   try {
      const userSnap = await adminDb.collection("users").where("telegramId", "==", telegramId).limit(1).get();
-     if (userSnap.empty) return ctx.reply("⚠️ Vincula tu cuenta.");
+     if (userSnap.empty) return await safeReply(ctx, "⚠️ Vincula tu cuenta con /vincular [código].");
      
       const userId = userSnap.docs[0].id;
       // Telegram provee un array de resoluciones. [0] es la más pequeña (ilegible para facturas).
@@ -676,13 +747,9 @@ bot.on("photo", async (ctx) => {
       const photo = ctx.message.photo[ctx.message.photo.length - 1]; 
       const fileId = photo.file_id;
 
-      console.log("Processing photo, fileId:", fileId);
-      ctx.reply("📸 Descargando imagen...");
+      await safeReply(ctx, "🤖 Descargando y analizando factura...");
 
       const fileLink = await bot.telegram.getFileLink(fileId);
-      
-      console.log("Downloading image...");
-      ctx.reply("🤖 Descargando y analizando... (10-15s)");
       
       // Download image as buffer
       const imageResponse = await axios.get(fileLink.toString(), { responseType: 'arraybuffer' });
@@ -691,22 +758,18 @@ bot.on("photo", async (ctx) => {
       // Send typing action to keep the connection alive
       await ctx.sendChatAction("typing");
 
-      console.log("Starting AI analysis with Base64...");
-
       let result;
       try {
         result = await analyzeReceipt(base64Image, true);
-        console.log("analyzeReceipt returned:", result);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : String(err);
         console.error("Error in analyzeReceipt:", err);
-        return ctx.reply(`❌ Error al analizar la imagen: ${err.message}. Intenta de nuevo.`);
+        return await safeReply(ctx, `❌ Error al analizar la imagen: ${errMessage}. Intenta de nuevo.`);
       }
 
-      console.log("Result received:", result);
       if (!result || result.error) {
-        // Show the raw response if available for debugging
-        const debugMsg = result.error.includes("JSON") ? `\n\n(Debug: ${result.error})` : "";
-        return ctx.reply(`❌ ${result.error}. Intenta de nuevo o describe el gasto manualmente.${debugMsg}`);
+        const debugMsg = result?.error?.includes("JSON") ? `\n\n(Debug: ${result.error})` : "";
+        return await safeReply(ctx, `❌ ${result?.error || "No se pudo leer la imagen"}. Intenta de nuevo o describe el gasto manualmente.${debugMsg}`);
      }
 
      // 1. Guardar datos temporales en Firestore (para evitar el límite de 64 bytes de Telegram)
@@ -723,7 +786,8 @@ bot.on("photo", async (ctx) => {
      const message = `📝 *Datos detectados:*\n\n💰 Monto: $${result.monto}\n📂 Categoría: ${result.categoria}\n📄 Descripción: ${result.descripcion}\n\n¿Qué deseas hacer?`;
 
      // 2. Responder con botones inline pasando solo el ID
-     ctx.reply(message, {
+     await safeReply(ctx, message, {
+       parse_mode: "Markdown",
        reply_markup: {
          inline_keyboard: [
            [
@@ -739,18 +803,14 @@ bot.on("photo", async (ctx) => {
 
   } catch (error) {
     console.error("Error processing photo:", error);
-    ctx.reply("❌ Error al procesar la foto. Intenta de nuevo.");
+    await safeReply(ctx, "❌ Error al procesar la foto. Intenta de nuevo.");
   }
 });
 
-// Store para confirmar transacciones de facturas (en memoria)
-const pendingReceipts = new Map();
-
 bot.on("callback_query", async (ctx) => {
-  const callbackData = (ctx.callbackQuery as any).data;
+  const cbQuery = ctx.callbackQuery as { data?: string; message?: { text?: string } };
+  const callbackData = cbQuery.data;
   if (!callbackData) return;
-  
-  const telegramId = ctx.from.id.toString();
 
   if (callbackData.startsWith("confirm_receipt_")) {
     try {
@@ -758,20 +818,20 @@ bot.on("callback_query", async (ctx) => {
       const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
       
       if (!pendingDoc.exists) {
-        return ctx.answerCbQuery("❌ Error: Los datos expiraron o no existen.");
+        return await ctx.answerCbQuery("❌ Error: Los datos expiraron o no existen.");
       }
       
       const data = pendingDoc.data()!;
       
       const userSnap = await adminDb.collection("users").doc(data.userId).get();
-      if (!userSnap.exists) return ctx.answerCbQuery("Error: Usuario no encontrado.");
+      if (!userSnap.exists) return await ctx.answerCbQuery("Error: Usuario no encontrado.");
       
       const userId = userSnap.id;
       const accountsSnap = await adminDb.collection("accounts").where("userId", "==", userId).get();
       
       if (accountsSnap.empty) {
-        ctx.answerCbQuery("❌ No tienes cuentas.");
-        return ctx.reply("⚠️ No tienes cuentas registradas.");
+        await ctx.answerCbQuery("❌ No tienes cuentas.");
+        return await safeReply(ctx, "⚠️ No tienes cuentas registradas.");
       }
 
       // Buscar cuenta Efectivo o usar la primera
@@ -802,34 +862,34 @@ bot.on("callback_query", async (ctx) => {
       // Limpiar datos temporales
       await adminDb.collection("pendingTransactions").doc(pendingId).delete();
 
-      ctx.answerCbQuery("✅ Registrado!");
-      ctx.editMessageText(`✅ *Gasto Registrado:*\n\n💰 $${monto} en ${data.categoria}\n📂 ${data.descripcion}`, { parse_mode: "Markdown" });
+      await ctx.answerCbQuery("✅ Registrado!");
+      await ctx.editMessageText(`✅ *Gasto Registrado:*\n\n💰 $${monto} en ${data.categoria}\n📂 ${data.descripcion}`, { parse_mode: "Markdown" });
 
     } catch (error) {
       console.error("Error confirming receipt:", error);
-      ctx.answerCbQuery("❌ Error al confirmar.");
+      await ctx.answerCbQuery("❌ Error al confirmar.");
     }
   } else if (callbackData.startsWith("edit_receipt_")) {
     const pendingId = callbackData.replace("edit_receipt_", "");
     const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
     
-    if (!pendingDoc.exists) return ctx.answerCbQuery("❌ Error: Expirado.");
+    if (!pendingDoc.exists) return await ctx.answerCbQuery("❌ Error: Expirado.");
     
     const data = pendingDoc.data()!;
     await adminDb.collection("users").doc(data.userId).update({
       telegramState: `editing_${pendingId}`
     });
     
-    ctx.answerCbQuery("Modo Edición Activado");
+    await ctx.answerCbQuery("Modo Edición Activado");
     
     // Attempt to extract original message text safely
-    const originalText = (ctx.callbackQuery as any).message?.text || "Datos previos detectados.";
+    const originalText = cbQuery.message?.text || "Datos previos detectados.";
     
-    ctx.editMessageText(`✏️ *Modo Edición*\n\n${originalText}\n\n👉 *Escribe o envía un audio con los cambios que deseas* (ej: "Pon monto en 20" o "Cambia categoría a Transporte").`, { parse_mode: "Markdown" });
+    await ctx.editMessageText(`✏️ *Modo Edición*\n\n${originalText}\n\n👉 *Escribe o envía un audio con los cambios que deseas* (ej: "Pon monto en 20" o "Cambia categoría a Transporte").`, { parse_mode: "Markdown" });
 
   } else if (callbackData === "cancel_receipt") {
-    ctx.answerCbQuery("Cancelado");
-    ctx.editMessageText("❌ Operación Cancelada.");
+    await ctx.answerCbQuery("Cancelado");
+    await ctx.editMessageText("❌ Operación Cancelada.");
   }
 });
 
