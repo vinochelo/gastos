@@ -167,6 +167,8 @@ El usuario te envía un mensaje sobre sus finanzas personales. Tu trabajo es ent
 
   9. **ENLACE WEB**: Si el usuario pide el link, url, página web, aplicación o cómo acceder, responde con tipo "enlace_web"
 
+  10. **ASESORÍA Y ANÁLISIS DE IA**: "analiza mis finanzas", "dame consejos", "recomiéndame qué hacer", "evalúa mis gastos", "cómo puedo ahorrar", "asesoría financiera", "análisis financiero" -> usa tipo "analisis_ia"
+
 **CATEGORÍAS DEL USUARIO:**
 Gastos: ${expCats.join(", ")}
 Ingresos: ${incCats.join(", ")}
@@ -191,7 +193,7 @@ Estructura exacta:
 {
   "items": [
     {
-      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "consulta_presupuesto" | "ayuda" | "enlace_web",
+      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "consulta_presupuesto" | "analisis_ia" | "ayuda" | "enlace_web",
       "monto": número (monto nuevo o detectado, usa decimales con punto: 0.35),
       "montoAnterior": número (monto incorrecto anterior que se está corrigiendo o editando, ej: "era 50 no 70" -> monto: 50, montoAnterior: 70),
       "categoria": "categoría nueva o detectada",
@@ -385,7 +387,7 @@ Genera el análisis financiero:
         { role: "user", content: prompt }
       ],
       temperature: 0.7,
-      max_tokens: 1500
+      max_tokens: 3500
     });
 
     return chatCompletion.choices[0]?.message?.content || "No se pudo generar el análisis en este momento.";

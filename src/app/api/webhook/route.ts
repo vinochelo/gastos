@@ -203,6 +203,98 @@ function formatBudgetReportMessage(evaluated: NonNullable<Awaited<ReturnType<typ
   return msg;
 }
 
+async function buildAccountSummaryAndAnalysis(
+  userId: string,
+  accountDocs: admin.firestore.QueryDocumentSnapshot[],
+  runAiAnalysis: boolean
+): Promise<string> {
+  let mensaje = "💰 *SALDOS:* \n";
+  let total = 0;
+
+  for (const docSnap of accountDocs) {
+    const data = docSnap.data();
+    mensaje += `• ${data.nombre}: $${(data.saldo || 0).toFixed(2)}\n`;
+    if (!data.nombre.toLowerCase().includes("ahorro")) {
+      total += data.saldo || 0;
+    }
+  }
+  mensaje += `────────────────\n*TOTAL DISPONIBLE:* $${total.toFixed(2)}\n\n`;
+
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+    const transSnap = await adminDb
+      .collection("transactions")
+      .where("userId", "==", userId)
+      .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
+      .orderBy("timestamp", "desc")
+      .get();
+
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    const categoryExpenses: Record<string, number> = {};
+
+    for (const tDoc of transSnap.docs) {
+      const tData = tDoc.data();
+      const tMonto = tData.monto || 0;
+      if (tData.tipo === "ingreso") {
+        incomeTotal += tMonto;
+      } else if (tData.tipo === "gasto") {
+        expenseTotal += tMonto;
+        const cat = tData.categoria || "Otro";
+        categoryExpenses[cat] = (categoryExpenses[cat] || 0) + tMonto;
+      }
+    }
+
+    const mesActualNombre = now.toLocaleString("es-ES", { month: "long" });
+    mensaje += `📊 *RESUMEN DE ${mesActualNombre.toUpperCase()}:*\n`;
+    mensaje += `• Ingresos: $${incomeTotal.toFixed(2)}\n`;
+    mensaje += `• Gastos: $${expenseTotal.toFixed(2)}\n`;
+    mensaje += `• Ahorro Neto: $${(incomeTotal - expenseTotal).toFixed(2)}\n\n`;
+
+    if (runAiAnalysis) {
+      mensaje += `🧠 *ANÁLISIS DE IA (GESTOR.AI):*\n`;
+      const balancesList = accountDocs.map((d) => ({
+        nombre: d.data().nombre,
+        saldo: d.data().saldo || 0,
+      }));
+
+      const userDoc = await adminDb.collection("users").doc(userId).get();
+      const userData = userDoc.data();
+      const userName = userData?.displayName || userData?.name || "Usuario";
+
+      const recentTransactionsList = transSnap.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          tipo: data.tipo,
+          monto: data.monto || 0,
+          categoria: data.categoria || "Otro",
+          descripcion: data.descripcion || "",
+        };
+      });
+
+      const aiAnalysis = await generateFinancialAnalysis(
+        incomeTotal,
+        expenseTotal,
+        balancesList,
+        categoryExpenses,
+        userName,
+        recentTransactionsList
+      );
+
+      mensaje += aiAnalysis;
+    } else {
+      mensaje += `💡 *Tip:* Si quieres consejos de GESTOR.AI, escribe *"analizar"* o *"dame consejos"*.`;
+    }
+  } catch (aiErr) {
+    console.error("Error generating Telegram AI analysis:", aiErr);
+    mensaje += "_(No se pudo generar el análisis de IA en este momento)_";
+  }
+
+  return mensaje;
+}
+
 async function handlePendingEdit(ctx: TelegramContext, userId: string, pendingId: string, userInput: string) {
   await safeReply(ctx, "✏️ Aplicando cambio...");
   const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
@@ -349,104 +441,23 @@ async function processIncomingTransaction(ctx: TelegramContext, userId: string, 
         } else {
           results.push(`⚠️ No pude identificar cuentas válidas de origen y destino para la transferencia.`);
         }
+      } else if (item.tipo === "analisis_ia") {
+        const mensaje = await buildAccountSummaryAndAnalysis(userId, accountsSnap.docs, true);
+        await safeReply(ctx, mensaje, { parse_mode: "Markdown" });
+        return;
       } else if (item.tipo === "consulta_saldo") {
         const cuentaBuscada = item.cuenta?.toLowerCase();
-        let mensaje = "💰 *SALDOS:* \n";
-        let total = 0;
-        
         if (cuentaBuscada === "todas" || !cuentaBuscada) {
-          for (const doc of accountsSnap.docs) {
-            const data = doc.data();
-            mensaje += `• ${data.nombre}: $${(data.saldo || 0).toFixed(2)}\n`;
-            if (!data.nombre.toLowerCase().includes("ahorro")) {
-              total += data.saldo || 0;
-            }
-          }
-          mensaje += `────────────────\n*TOTAL DISPONIBLE:* $${total.toFixed(2)}\n\n`;
-
-          // Fetch current month's transaction totals for summary & AI analysis
-          try {
-            const startOfMonth = new Date();
-            startOfMonth.setDate(1);
-            startOfMonth.setHours(0, 0, 0, 0);
-
-            const transSnap = await adminDb.collection("transactions")
-              .where("userId", "==", userId)
-              .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
-              .orderBy("timestamp", "desc")
-              .get();
-
-            let incomeTotal = 0;
-            let expenseTotal = 0;
-            const categoryExpenses: Record<string, number> = {};
-
-            for (const tDoc of transSnap.docs) {
-              const tData = tDoc.data();
-              const tMonto = tData.monto || 0;
-              if (tData.tipo === "ingreso") {
-                incomeTotal += tMonto;
-              } else if (tData.tipo === "gasto") {
-                expenseTotal += tMonto;
-                const cat = tData.categoria || "Otro";
-                categoryExpenses[cat] = (categoryExpenses[cat] || 0) + tMonto;
-              }
-            }
-
-            const mesActualNombre = new Date().toLocaleString('es-ES', { month: 'long' });
-            mensaje += `📊 *RESUMEN DE ${mesActualNombre.toUpperCase()}:*\n`;
-            mensaje += `• Ingresos: $${incomeTotal.toFixed(2)}\n`;
-            mensaje += `• Gastos: $${expenseTotal.toFixed(2)}\n`;
-            mensaje += `• Ahorro Neto: $${(incomeTotal - expenseTotal).toFixed(2)}\n\n`;
-
-            const shouldRunAi = /anal|ia|gestor|consejo|recom|suger/i.test(userInput || "");
-            
-            if (shouldRunAi) {
-              mensaje += `🧠 *ANÁLISIS DE IA (GESTOR.AI):*\n`;
-              const balancesList = accountsSnap.docs.map(d => ({
-                nombre: d.data().nombre,
-                saldo: d.data().saldo || 0
-              }));
-              
-              const userDoc = await adminDb.collection("users").doc(userId).get();
-              const userName = userDoc.data()?.name || "Usuario";
-
-              const recentTransactionsList = transSnap.docs.map(doc => {
-                const data = doc.data();
-                return {
-                  tipo: data.tipo,
-                  monto: data.monto || 0,
-                  categoria: data.categoria || "Otro",
-                  descripcion: data.descripcion || ""
-                };
-              });
-
-              const aiAnalysis = await generateFinancialAnalysis(
-                incomeTotal,
-                expenseTotal,
-                balancesList,
-                categoryExpenses,
-                userName,
-                recentTransactionsList
-              );
-              
-              mensaje += aiAnalysis;
-            } else {
-              mensaje += `💡 *Tip:* Si quieres consejos de GESTOR.AI, escribe *"analizar"* o *"consejos"*.`;
-            }
-          } catch (aiErr) {
-            console.error("Error generating Telegram AI analysis:", aiErr);
-            mensaje += "_(No se pudo generar el análisis de IA en este momento)_";
-          }
+          const shouldRunAi = /anal|ia|gestor|consejo|recom|suger/i.test(userInput || "");
+          const mensaje = await buildAccountSummaryAndAnalysis(userId, accountsSnap.docs, shouldRunAi);
+          await safeReply(ctx, mensaje, { parse_mode: "Markdown" });
         } else {
           const cuentaMatch = findAccount(cuentaBuscada, accountsSnap.docs);
-          if (cuentaMatch) {
-            const data = cuentaMatch.data();
-            mensaje = `💰 *${data.nombre}:* $${(data.saldo || 0).toFixed(2)}`;
-          } else {
-            mensaje = `❌ No encontré la cuenta "${item.cuenta}".`;
-          }
+          const mensaje = cuentaMatch
+            ? `💰 *${cuentaMatch.data().nombre}:* $${(cuentaMatch.data().saldo || 0).toFixed(2)}`
+            : `❌ No encontré la cuenta "${item.cuenta}".`;
+          await safeReply(ctx, mensaje, { parse_mode: "Markdown" });
         }
-        await safeReply(ctx, mensaje, { parse_mode: "Markdown" });
         return;
       } else if (item.tipo === "consulta_presupuesto") {
         const evaluated = await getEvaluatedUserBudgets(userId);
