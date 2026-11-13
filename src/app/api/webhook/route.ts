@@ -39,21 +39,26 @@ async function safeReply(
   text: string,
   extra?: TelegramReplyExtra
 ) {
+  const baseExtra: TelegramReplyExtra = {
+    link_preview_options: { is_disabled: true },
+    ...extra,
+  };
   const chunks = splitTelegramMessage(text);
   for (let i = 0; i < chunks.length; i++) {
-    const chunkExtra: TelegramReplyExtra | undefined =
+    const chunkExtra: TelegramReplyExtra =
       i === chunks.length - 1
-        ? extra
-        : extra?.parse_mode
-        ? { parse_mode: extra.parse_mode }
-        : undefined;
+        ? baseExtra
+        : {
+            link_preview_options: { is_disabled: true },
+            ...(baseExtra.parse_mode ? { parse_mode: baseExtra.parse_mode } : {}),
+          };
     try {
       await ctx.reply(chunks[i], chunkExtra);
     } catch (err) {
-      if (chunkExtra?.parse_mode) {
+      if (chunkExtra.parse_mode) {
         const fallbackExtra = { ...chunkExtra };
         delete fallbackExtra.parse_mode;
-        await ctx.reply(chunks[i], Object.keys(fallbackExtra).length ? fallbackExtra : undefined);
+        await ctx.reply(chunks[i], fallbackExtra);
       } else {
         throw err;
       }
@@ -295,6 +300,272 @@ async function buildAccountSummaryAndAnalysis(
   return mensaje;
 }
 
+const ECUADOR_OFFSET_MS = -5 * 60 * 60 * 1000;
+
+function getEcuadorPeriodRange(periodo?: string): { start: Date; end: Date; label: string } {
+  const nowUtc = Date.now();
+  const localNow = new Date(nowUtc + ECUADOR_OFFSET_MS);
+  const y = localNow.getUTCFullYear();
+  const m = localNow.getUTCMonth();
+  const d = localNow.getUTCDate();
+  const dayOfWeek = localNow.getUTCDay(); // 0=Dom..6=Sab
+
+  const toUtcDate = (year: number, month: number, day: number) =>
+    new Date(Date.UTC(year, month, day, 0, 0, 0, 0) - ECUADOR_OFFSET_MS);
+
+  if (periodo === "hoy") {
+    return { start: toUtcDate(y, m, d), end: toUtcDate(y, m, d + 1), label: "hoy" };
+  }
+  if (periodo === "ayer") {
+    return { start: toUtcDate(y, m, d - 1), end: toUtcDate(y, m, d), label: "ayer" };
+  }
+  if (periodo === "semana") {
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    return {
+      start: toUtcDate(y, m, d - diffToMonday),
+      end: toUtcDate(y, m, d + 1),
+      label: "esta semana",
+    };
+  }
+
+  const label = new Date(Date.UTC(y, m, 15)).toLocaleString("es-ES", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return { start: toUtcDate(y, m, 1), end: toUtcDate(y, m + 1, 1), label };
+}
+
+async function getExpensesByPeriodMessage(
+  userId: string,
+  accountDocs: admin.firestore.QueryDocumentSnapshot[],
+  categoria?: string,
+  periodo?: string
+): Promise<string> {
+  if (periodo === "ultimos") {
+    const recentSnap = await adminDb
+      .collection("transactions")
+      .where("userId", "==", userId)
+      .orderBy("timestamp", "desc")
+      .limit(8)
+      .get();
+
+    if (recentSnap.empty) {
+      return "📋 Aún no tienes movimientos registrados.";
+    }
+
+    const accNames = new Map<string, string>();
+    for (const a of accountDocs) accNames.set(a.id, String(a.data().nombre || "Cuenta"));
+
+    let msg = "📋 *ÚLTIMOS MOVIMIENTOS:*\n\n";
+    for (const docSnap of recentSnap.docs) {
+      const data = docSnap.data();
+      const ts = data.timestamp?.toDate ? data.timestamp.toDate() : null;
+      const fechaTxt = ts
+        ? ts.toLocaleDateString("es-ES", { day: "2-digit", month: "short", timeZone: "America/Guayaquil" })
+        : "";
+      const icon = data.tipo === "ingreso" ? "💰" : data.tipo === "transferencia" ? "💸" : "💳";
+      const monto = Math.abs(Number(data.monto || 0)).toFixed(2);
+      const desc = data.descripcion && data.descripcion !== data.categoria ? ` - ${data.descripcion}` : "";
+      const accTxt = data.tipo === "transferencia"
+        ? `${data.fromNombre || ""} → ${data.toNombre || ""}`
+        : accNames.get(data.accountId) || "";
+      msg += `${icon} *$${monto}* · ${data.categoria || data.tipo}${desc}${accTxt ? ` (${accTxt})` : ""}${fechaTxt ? ` · _${fechaTxt}_` : ""}\n`;
+    }
+    return msg;
+  }
+
+  const { start, end, label } = getEcuadorPeriodRange(periodo);
+  const transSnap = await adminDb
+    .collection("transactions")
+    .where("userId", "==", userId)
+    .where("tipo", "==", "gasto")
+    .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(start))
+    .where("timestamp", "<", admin.firestore.Timestamp.fromDate(end))
+    .get();
+
+  if (categoria) {
+    const targetNorm = normalizeCategoryKey(categoria);
+    let total = 0;
+    let count = 0;
+    const details: string[] = [];
+
+    for (const docSnap of transSnap.docs) {
+      const data = docSnap.data();
+      const catNorm = normalizeCategoryKey(data.categoria);
+      if (catNorm === targetNorm || catNorm.includes(targetNorm)) {
+        const val = Number(data.monto || 0);
+        total += val;
+        count++;
+        if (details.length < 6 && data.descripcion) {
+          details.push(`• $${val.toFixed(2)} - ${data.descripcion}`);
+        }
+      }
+    }
+
+    let msg = `📊 *GASTOS EN ${categoria.toUpperCase()} (${label}):*\n\n💰 Total: *$${total.toFixed(2)}*\n📝 Transacciones: ${count}`;
+    if (details.length > 0) {
+      msg += `\n\n${details.join("\n")}`;
+    }
+    return msg;
+  }
+
+  const porCategoria: Record<string, number> = {};
+  for (const docSnap of transSnap.docs) {
+    const data = docSnap.data();
+    const cat = String(data.categoria || "Varios");
+    porCategoria[cat] = (porCategoria[cat] || 0) + Number(data.monto || 0);
+  }
+
+  if (Object.keys(porCategoria).length === 0) {
+    return `📊 No registras gastos en *${label}*.`;
+  }
+
+  let msg = `📊 *GASTOS (${label.toUpperCase()}):*\n\n`;
+  for (const [cat, monto] of Object.entries(porCategoria).sort((a, b) => b[1] - a[1])) {
+    msg += `• ${cat}: $${monto.toFixed(2)}\n`;
+  }
+  const totalGastos = Object.values(porCategoria).reduce((a, b) => a + b, 0);
+  msg += `\n💰 *TOTAL:* $${totalGastos.toFixed(2)}`;
+  return msg;
+}
+
+async function getDebtsSummaryMessage(userId: string): Promise<string> {
+  const snap = await adminDb.collection("debts").where("userId", "==", userId).get();
+  const pending = snap.docs
+    .map((d) => d.data())
+    .filter((d) => !d.pagado);
+
+  if (pending.length === 0) {
+    return "🤝 No tienes deudas pendientes por pagar ni por cobrar.";
+  }
+
+  const debo = pending.filter((d) => d.tipo === "debo");
+  const meDeben = pending.filter((d) => d.tipo === "me_deben");
+  let msg = "🤝 *DEUDAS PENDIENTES:*\n\n";
+
+  if (debo.length > 0) {
+    const totalDebo = debo.reduce((s, d) => s + Number(d.monto || 0), 0);
+    msg += `🔴 *Debes ($${totalDebo.toFixed(2)}):*\n`;
+    for (const d of debo) {
+      msg += `• ${d.nombre}: $${Number(d.monto || 0).toFixed(2)}${d.descripcion ? ` (${d.descripcion})` : ""}\n`;
+    }
+    msg += "\n";
+  }
+
+  if (meDeben.length > 0) {
+    const totalCobrar = meDeben.reduce((s, d) => s + Number(d.monto || 0), 0);
+    msg += `🟢 *Te deben ($${totalCobrar.toFixed(2)}):*\n`;
+    for (const d of meDeben) {
+      msg += `• ${d.nombre}: $${Number(d.monto || 0).toFixed(2)}${d.descripcion ? ` (${d.descripcion})` : ""}\n`;
+    }
+  }
+  return msg;
+}
+
+async function getGoalsSummaryMessage(userId: string): Promise<string> {
+  const snap = await adminDb.collection("goals").where("userId", "==", userId).get();
+  if (snap.empty) {
+    return "🎯 Aún no tienes metas de ahorro creadas.";
+  }
+
+  let msg = "🎯 *METAS DE AHORRO:*\n\n";
+  for (const docSnap of snap.docs) {
+    const g = docSnap.data();
+    const actual = Number(g.montoActual || 0);
+    const objetivo = Number(g.montoObjetivo || 0);
+    const pct = objetivo > 0 ? Math.min(100, Math.round((actual / objetivo) * 100)) : 0;
+    const faltante = Math.max(0, objetivo - actual);
+    const icon = pct >= 100 ? "✅" : "🎯";
+    msg += `${icon} *${g.nombre}:* $${actual.toFixed(2)} / $${objetivo.toFixed(2)} (*${pct}%*)${faltante > 0 ? ` · faltan $${faltante.toFixed(2)}` : " · ¡Completada!"}\n`;
+  }
+  return msg;
+}
+
+async function undoTransactionMatching(
+  userId: string,
+  accountDocs: admin.firestore.QueryDocumentSnapshot[],
+  batch: admin.firestore.WriteBatch,
+  requestedMonto = 0,
+  cuentaBuscada?: string
+): Promise<string> {
+  const recentSnap = await adminDb
+    .collection("transactions")
+    .where("userId", "==", userId)
+    .orderBy("timestamp", "desc")
+    .limit(20)
+    .get();
+
+  const matchedAcc = cuentaBuscada ? findAccount(cuentaBuscada, accountDocs) : null;
+
+  for (const docSnap of recentSnap.docs) {
+    const data = docSnap.data();
+    const txMonto = Math.abs(data.monto || 0);
+    const matchMonto = !requestedMonto || txMonto === requestedMonto;
+    const matchCuenta =
+      !cuentaBuscada ||
+      (data.accountId && matchedAcc && matchedAcc.id === data.accountId);
+
+    if (matchMonto && matchCuenta) {
+      const descripcionReverso =
+        data.descripcion && data.descripcion !== data.categoria
+          ? ` - ${data.descripcion}`
+          : "";
+      let summaryLine = `↩️ REVERSADO: $${txMonto}${descripcionReverso}`;
+
+      if (data.tipo === "transferencia") {
+        if (data.fromId) {
+          batch.update(adminDb.collection("accounts").doc(data.fromId), {
+            saldo: admin.firestore.FieldValue.increment(txMonto),
+          });
+        }
+        if (data.toId) {
+          batch.update(adminDb.collection("accounts").doc(data.toId), {
+            saldo: admin.firestore.FieldValue.increment(-txMonto),
+          });
+        }
+        summaryLine = `↩️ REVERSADA transferencia: $${txMonto}${descripcionReverso}`;
+      } else if (data.accountId) {
+        const isGasto = data.tipo === "gasto";
+        const multReverso = isGasto ? 1 : -1;
+        const accountDocMatch = accountDocs.find((a) => a.id === data.accountId);
+        if (accountDocMatch) {
+          const currentSaldo = accountDocMatch.data().saldo || 0;
+          const newSaldo = currentSaldo + multReverso * txMonto;
+          batch.update(adminDb.collection("accounts").doc(data.accountId), {
+            saldo: admin.firestore.FieldValue.increment(multReverso * txMonto),
+          });
+          summaryLine = `↩️ REVERSADO: $${txMonto} en ${accountDocMatch.data().nombre}${descripcionReverso} (saldo: $${newSaldo.toFixed(2)})`;
+        }
+      }
+
+      batch.delete(adminDb.collection("transactions").doc(docSnap.id));
+      return summaryLine;
+    }
+  }
+
+  return requestedMonto
+    ? `⚠️ No encontré transacción de $${requestedMonto} para revertir.`
+    : `⚠️ No encontré ninguna transacción reciente para revertir.`;
+}
+
+async function getLinkedUser(ctx: TelegramContext & { from?: { id: number } }) {
+  const telegramId = ctx.from?.id?.toString();
+  if (!telegramId) return null;
+  const userSnap = await adminDb
+    .collection("users")
+    .where("telegramId", "==", telegramId)
+    .limit(1)
+    .get();
+  if (userSnap.empty) {
+    await safeReply(ctx, "⚠️ Vincula tu cuenta primero usando `/vincular [código]` desde Ajustes en la app.", {
+      parse_mode: "Markdown",
+    });
+    return null;
+  }
+  return { userId: userSnap.docs[0].id, userData: userSnap.docs[0].data() };
+}
+
 async function handlePendingEdit(ctx: TelegramContext, userId: string, pendingId: string, userInput: string) {
   await safeReply(ctx, "✏️ Aplicando cambio...");
   const pendingDoc = await adminDb.collection("pendingTransactions").doc(pendingId).get();
@@ -487,102 +758,104 @@ async function processIncomingTransaction(ctx: TelegramContext, userId: string, 
         await safeReply(ctx, formatBudgetReportMessage(evaluated), { parse_mode: "Markdown" });
         return;
       } else if (item.tipo === "consulta_gasto_categoria") {
-        const catBuscada = item.categoria;
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-        
-        const transSnap = await adminDb.collection("transactions")
-          .where("userId", "==", userId)
-          .where("tipo", "==", "gasto")
-          .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(startOfMonth))
-          .get();
-        
-        let total = 0;
-        let count = 0;
-        const mesActual = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-        
-        if (catBuscada) {
-          const catLower = catBuscada.toLowerCase();
-          for (const doc of transSnap.docs) {
-            const data = doc.data();
-            if (data.categoria?.toLowerCase().includes(catLower)) {
-              total += Number(data.monto || 0);
-              count++;
-            }
-          }
-          await safeReply(ctx, `📊 GASTOS EN ${catBuscada.toUpperCase()} (${mesActual}):\n\n💰 Total: $${total.toFixed(2)}\n📝 Transacciones: ${count}`);
-          return;
+        const msg = await getExpensesByPeriodMessage(
+          userId,
+          accountsSnap.docs,
+          item.categoria,
+          item.periodo
+        );
+        await safeReply(ctx, msg, { parse_mode: "Markdown" });
+        return;
+      } else if (item.tipo === "consulta_deudas") {
+        await safeReply(ctx, await getDebtsSummaryMessage(userId), { parse_mode: "Markdown" });
+        return;
+      } else if (item.tipo === "nueva_deuda") {
+        if (!monto || !item.persona) {
+          results.push("⚠️ Indica el monto y el nombre de la persona para registrar la deuda.");
+          continue;
+        }
+        const deudaTipo = item.deudaTipo === "me_deben" ? "me_deben" : "debo";
+        const fechaHoy = new Date(Date.now() + ECUADOR_OFFSET_MS).toISOString().slice(0, 10);
+        batch.set(adminDb.collection("debts").doc(), {
+          userId,
+          nombre: item.persona.trim(),
+          monto,
+          tipo: deudaTipo,
+          descripcion: item.descripcion || "",
+          fecha: fechaHoy,
+          pagado: false,
+        });
+        results.push(
+          deudaTipo === "me_deben"
+            ? `🟢 Deuda registrada: ${item.persona} te debe $${monto.toFixed(2)}`
+            : `🔴 Deuda registrada: le debes $${monto.toFixed(2)} a ${item.persona}`
+        );
+      } else if (item.tipo === "pagar_deuda") {
+        const targetPersona = normalizeCategoryKey(item.persona);
+        const debtsSnap = await adminDb.collection("debts").where("userId", "==", userId).get();
+        const matchDebt = debtsSnap.docs.find((d) => {
+          const data = d.data();
+          if (data.pagado) return false;
+          const nameNorm = normalizeCategoryKey(data.nombre);
+          const nameOk = targetPersona
+            ? nameNorm.includes(targetPersona) || targetPersona.includes(nameNorm)
+            : true;
+          const montoOk = !monto || Math.abs(Number(data.monto || 0) - monto) < 0.01;
+          return nameOk && montoOk;
+        });
+        if (matchDebt) {
+          const d = matchDebt.data();
+          batch.update(matchDebt.ref, { pagado: true });
+          results.push(`✅ Deuda saldada: ${d.nombre} ($${Number(d.monto || 0).toFixed(2)})`);
         } else {
-          const porCategoria: Record<string, number> = {};
-          for (const doc of transSnap.docs) {
-            const data = doc.data();
-            const cat = data.categoria || "Varios";
-            porCategoria[cat] = (porCategoria[cat] || 0) + Number(data.monto || 0);
-          }
-          let msg = `📊 GASTOS DEL MES (${mesActual}):\n\n`;
-          for (const [cat, monto] of Object.entries(porCategoria).sort((a, b) => b[1] - a[1])) {
-            msg += `• ${cat}: $${monto.toFixed(2)}\n`;
-          }
-          const totalGastos = Object.values(porCategoria).reduce((a, b) => a + b, 0);
-          msg += `\n💰 TOTAL: $${totalGastos.toFixed(2)}`;
-          await safeReply(ctx, msg);
-          return;
+          results.push(
+            item.persona
+              ? `⚠️ No encontré ninguna deuda pendiente con "${item.persona}".`
+              : "⚠️ No encontré deudas pendientes que coincidan."
+          );
+        }
+      } else if (item.tipo === "consulta_metas") {
+        await safeReply(ctx, await getGoalsSummaryMessage(userId), { parse_mode: "Markdown" });
+        return;
+      } else if (item.tipo === "abonar_meta") {
+        if (!monto) {
+          results.push("⚠️ Indica cuánto deseas abonar a tu meta.");
+          continue;
+        }
+        const goalsSnap = await adminDb.collection("goals").where("userId", "==", userId).get();
+        const targetMeta = normalizeCategoryKey(item.metaNombre || item.descripcion || item.categoria);
+        let matchGoal = goalsSnap.docs.find((d) => {
+          const gNorm = normalizeCategoryKey(d.data().nombre);
+          return targetMeta && (gNorm.includes(targetMeta) || targetMeta.includes(gNorm));
+        });
+        if (!matchGoal && goalsSnap.docs.length === 1) {
+          matchGoal = goalsSnap.docs[0];
+        }
+        if (matchGoal) {
+          const g = matchGoal.data();
+          const nuevoActual = Number(g.montoActual || 0) + monto;
+          const objetivo = Number(g.montoObjetivo || 0);
+          const pct = objetivo > 0 ? Math.min(100, Math.round((nuevoActual / objetivo) * 100)) : 0;
+          batch.update(matchGoal.ref, {
+            montoActual: admin.firestore.FieldValue.increment(monto),
+          });
+          results.push(
+            `🎯 Abono a "${g.nombre}": +$${monto.toFixed(2)} (total $${nuevoActual.toFixed(2)}/$${objetivo.toFixed(2)} · ${pct}%)`
+          );
+        } else {
+          results.push("⚠️ No encontré esa meta de ahorro. Revisa el nombre en la sección Metas.");
         }
       } else if (item.tipo === "reverso") {
         const requestedMonto = item.monto ? Math.abs(item.monto) : 0;
         const cuentaBuscada = item.cuenta?.toLowerCase();
-        
-        const recentSnap = await adminDb.collection("transactions")
-          .where("userId", "==", userId)
-          .orderBy("timestamp", "desc")
-          .limit(20)
-          .get();
-        
-        let matchFound = false;
-        
-        for (const doc of recentSnap.docs) {
-          const data = doc.data();
-          const txMonto = Math.abs(data.monto || 0);
-          const matchMonto = !requestedMonto || txMonto === requestedMonto;
-          const matchedAcc = cuentaBuscada ? findAccount(cuentaBuscada, accountsSnap.docs) : null;
-          const matchCuenta = !cuentaBuscada || 
-            (data.accountId && matchedAcc && matchedAcc.id === data.accountId);
-          
-          if (matchMonto && matchCuenta) {
-            const descripcionReverso = data.descripcion && data.descripcion !== data.categoria ? ` - ${data.descripcion}` : "";
-
-            if (data.tipo === "transferencia") {
-              if (data.fromId) {
-                batch.update(adminDb.collection("accounts").doc(data.fromId), { saldo: admin.firestore.FieldValue.increment(txMonto) });
-              }
-              if (data.toId) {
-                batch.update(adminDb.collection("accounts").doc(data.toId), { saldo: admin.firestore.FieldValue.increment(-txMonto) });
-              }
-              results.push(`↩️ REVERSADA transferencia: $${txMonto}${descripcionReverso}`);
-            } else {
-              const isGasto = data.tipo === "gasto";
-              const multReverso = isGasto ? 1 : -1;
-              if (data.accountId) {
-                const accountDocMatch = accountsSnap.docs.find(a => a.id === data.accountId);
-                if (accountDocMatch) {
-                  const currentSaldo = accountDocMatch.data().saldo || 0;
-                  const newSaldo = currentSaldo + (multReverso * txMonto);
-                  batch.update(adminDb.collection("accounts").doc(data.accountId), { saldo: admin.firestore.FieldValue.increment(multReverso * txMonto) });
-                  results.push(`↩️ REVERSADO: $${txMonto} en ${accountDocMatch.data().nombre}${descripcionReverso} (saldo: $${newSaldo.toFixed(2)})`);
-                }
-              }
-            }
-            
-            batch.delete(adminDb.collection("transactions").doc(doc.id));
-            matchFound = true;
-            break;
-          }
-        }
-        
-        if (!matchFound) {
-          results.push(requestedMonto ? `⚠️ No encontré transacción de $${requestedMonto} para revertir.` : `⚠️ No encontré ninguna transacción reciente para revertir.`);
-        }
+        const summaryLine = await undoTransactionMatching(
+          userId,
+          accountsSnap.docs,
+          batch,
+          requestedMonto,
+          cuentaBuscada
+        );
+        results.push(summaryLine);
       } else if (item.tipo === "editar") {
         const recentSnap = await adminDb.collection("transactions")
           .where("userId", "==", userId)
@@ -762,6 +1035,101 @@ async function processIncomingTransaction(ctx: TelegramContext, userId: string, 
     await safeReply(ctx, "❌ Error en el procesamiento. Verifica la configuración de IA del bot.");
   }
 }
+
+bot.start(async (ctx) => {
+  await safeReply(ctx, getHelpMessage(), { parse_mode: "Markdown" });
+});
+
+bot.command(["ayuda", "help"], async (ctx) => {
+  await safeReply(ctx, getHelpMessage(), { parse_mode: "Markdown" });
+});
+
+bot.command("web", async (ctx) => {
+  await safeReply(ctx, "🌐 *Accede a la aplicación web:*\n\nhttps://gastos-delta-pearl.vercel.app/", {
+    parse_mode: "Markdown",
+  });
+});
+
+bot.command(["saldos", "saldo"], async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  const accountsSnap = await adminDb.collection("accounts").where("userId", "==", linked.userId).get();
+  const msg = await buildAccountSummaryAndAnalysis(linked.userId, accountsSnap.docs, false);
+  await safeReply(ctx, msg, { parse_mode: "Markdown" });
+});
+
+bot.command(["presupuestos", "presupuesto"], async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  const evaluated = await getEvaluatedUserBudgets(linked.userId);
+  if (!evaluated) {
+    await safeReply(ctx, "📊 Aún no tienes presupuestos configurados. Créalos desde *Presupuestos* en la app.", {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+  await safeReply(ctx, formatBudgetReportMessage(evaluated), { parse_mode: "Markdown" });
+});
+
+bot.command(["gastos", "gasto"], async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  const arg = ctx.message.text.split(" ").slice(1).join(" ").trim();
+  const argNorm = normalizeCategoryKey(arg);
+  let periodo: "hoy" | "ayer" | "semana" | "mes" | "ultimos" | undefined;
+  let categoria: string | undefined;
+
+  if (argNorm === "hoy" || argNorm === "ayer" || argNorm === "semana" || argNorm === "mes") {
+    periodo = argNorm;
+  } else if (arg) {
+    categoria = arg;
+  }
+
+  const accountsSnap = await adminDb.collection("accounts").where("userId", "==", linked.userId).get();
+  const msg = await getExpensesByPeriodMessage(linked.userId, accountsSnap.docs, categoria, periodo);
+  await safeReply(ctx, msg, { parse_mode: "Markdown" });
+});
+
+bot.command(["movimientos", "ultimos"], async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  const accountsSnap = await adminDb.collection("accounts").where("userId", "==", linked.userId).get();
+  const msg = await getExpensesByPeriodMessage(linked.userId, accountsSnap.docs, undefined, "ultimos");
+  await safeReply(ctx, msg, { parse_mode: "Markdown" });
+});
+
+bot.command("deudas", async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  await safeReply(ctx, await getDebtsSummaryMessage(linked.userId), { parse_mode: "Markdown" });
+});
+
+bot.command("metas", async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  await safeReply(ctx, await getGoalsSummaryMessage(linked.userId), { parse_mode: "Markdown" });
+});
+
+bot.command(["analizar", "consejos"], async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  await safeReply(ctx, "🧠 Analizando tus finanzas del mes con IA...");
+  const accountsSnap = await adminDb.collection("accounts").where("userId", "==", linked.userId).get();
+  const msg = await buildAccountSummaryAndAnalysis(linked.userId, accountsSnap.docs, true);
+  await safeReply(ctx, msg, { parse_mode: "Markdown" });
+});
+
+bot.command(["deshacer", "reverso"], async (ctx) => {
+  const linked = await getLinkedUser(ctx);
+  if (!linked) return;
+  const accountsSnap = await adminDb.collection("accounts").where("userId", "==", linked.userId).get();
+  const batch = adminDb.batch();
+  const summaryLine = await undoTransactionMatching(linked.userId, accountsSnap.docs, batch);
+  if (!summaryLine.startsWith("⚠️")) {
+    await batch.commit();
+  }
+  await safeReply(ctx, summaryLine);
+});
 
 bot.command("vincular", async (ctx) => {
   const args = ctx.message.text.split(" ").slice(1);

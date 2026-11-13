@@ -113,6 +113,10 @@ export interface ParsedTransactionItem {
   descripcion?: string;
   fecha?: string;
   nuevoTipo?: "gasto" | "ingreso";
+  periodo?: "hoy" | "ayer" | "semana" | "mes" | "ultimos";
+  persona?: string;
+  deudaTipo?: "debo" | "me_deben";
+  metaNombre?: string;
 }
 
 export interface ParsedTransactionResponse {
@@ -123,7 +127,13 @@ export async function parseTransaction(text: string, accountNames: string[], use
   const expCats = userExpCats?.length ? userExpCats : ["Casa", "Cine", "Comida", "Compras Ecommerce", "Comunicaciones", "Deportes", "Costos Bancarios", "Desayunos", "Restaurantes", "Entretenimiento", "Higiene", "IVA Electronico", "Juegos", "Mascotas", "Regalos", "Ropa", "Salud", "Servicios Basicos", "Streaming", "Taxi/Uber", "Transporte"];
   const incCats = userIncCats?.length ? userIncCats : ["Salario", "Inversion", "Regalo", "Otro"];
   const now = new Date();
-  const dateStr = now.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const dateStr = now.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'America/Guayaquil',
+  });
 
   const prompt = `
 Eres un asistente contable experto en español latinoamericano. Fecha actual: ${dateStr}.
@@ -161,13 +171,25 @@ El usuario te envía un mensaje sobre sus finanzas personales. Tu trabajo es ent
 6. **CONSULTAR SALDO**: "cuánto tengo", "mi saldo", "cuánto hay en la cuenta", "balances"
    - Si menciona cuenta específica: "cuánto hay en efectivo"
 
-  7. **CONSULTAR GASTOS**: "cuánto gasté esta semana", "qué gasté en comer", "mis gastos del mes"
+  7. **CONSULTAR GASTOS Y MOVIMIENTOS**: "cuánto gasté hoy", "gastos de ayer", "qué gasté esta semana", "qué gasté en comida", "mis gastos del mes", "últimos movimientos", "últimos gastos"
+     - Usa tipo "consulta_gasto_categoria".
+     - Extrae "periodo": "hoy" | "ayer" | "semana" | "mes" | "ultimos" (para "últimos movimientos/gastos" usa "ultimos"; si no especifica, omite o usa "mes").
+     - Si menciona categoría (ej. "comida"), ponla en "categoria".
 
   8. **CONSULTAR PRESUPUESTOS**: "cómo voy con mi presupuesto", "mis presupuestos", "estoy dentro del presupuesto", "cuánto me queda de presupuesto" -> usa tipo "consulta_presupuesto" (si menciona categoría, inclúyela en "categoria")
 
   9. **ENLACE WEB**: Si el usuario pide el link, url, página web, aplicación o cómo acceder, responde con tipo "enlace_web"
 
   10. **ASESORÍA Y ANÁLISIS DE IA**: "analiza mis finanzas", "dame consejos", "recomiéndame qué hacer", "evalúa mis gastos", "cómo puedo ahorrar", "asesoría financiera", "análisis financiero" -> usa tipo "analisis_ia"
+
+  11. **DEUDAS (CONSULTAR / REGISTRAR / SALDAR)**:
+     - Consultar: "mis deudas", "quién me debe", "a quién le debo", "cuánto debo" -> usa tipo "consulta_deudas".
+     - Registrar nueva deuda: "le debo 40 a Juan", "María me debe 25 por uber" -> usa tipo "nueva_deuda", "deudaTipo": "debo" | "me_deben", "persona": "nombre", "monto": número, "descripcion": "motivo".
+     - Marcar como pagada: "ya le pagué a Juan", "María ya me pagó", "saldar deuda de Pedro" -> usa tipo "pagar_deuda", "persona": "nombre", "monto" (opcional).
+
+  12. **METAS DE AHORRO (CONSULTAR / ABONAR)**:
+     - Consultar: "mis metas", "cómo van mis metas", "cuánto llevo ahorrado" -> usa tipo "consulta_metas".
+     - Abonar fondos a una meta: "ahorré 50 para laptop", "abona 100 a la meta viaje", "agregué 30 a mi meta" -> usa tipo "abonar_meta", "metaNombre": "nombre de la meta", "monto": número.
 
 **CATEGORÍAS DEL USUARIO:**
 Gastos: ${expCats.join(", ")}
@@ -193,7 +215,7 @@ Estructura exacta:
 {
   "items": [
     {
-      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "consulta_presupuesto" | "analisis_ia" | "ayuda" | "enlace_web",
+      "tipo": "gasto" | "ingreso" | "transferencia" | "reverso" | "reclasificar" | "editar" | "consulta_saldo" | "consulta_gasto_categoria" | "consulta_presupuesto" | "analisis_ia" | "consulta_deudas" | "nueva_deuda" | "pagar_deuda" | "consulta_metas" | "abonar_meta" | "ayuda" | "enlace_web",
       "monto": número (monto nuevo o detectado, usa decimales con punto: 0.35),
       "montoAnterior": número (monto incorrecto anterior que se está corrigiendo o editando, ej: "era 50 no 70" -> monto: 50, montoAnterior: 70),
       "categoria": "categoría nueva o detectada",
@@ -205,7 +227,11 @@ Estructura exacta:
       "toCuenta": "SOLO para tipo 'transferencia': nombre de la cuenta de destino",
       "descripcion": "concepto limpio de la transacción en singular (ej: 'pan', 'taxi', 'almuerzo', 'salario'), excluyendo palabras de acción como 'añade', 'gasté', 'pagué', 'ingresa', 'un dólar', 'pesos' o similares",
       "fecha": "YYYY-MM-DD (solo si menciona fecha específica, si no omite el campo)",
-      "nuevoTipo": "gasto | ingreso (SOLO para tipo 'editar', si el usuario quiere cambiar el tipo de la transacción)"
+      "nuevoTipo": "gasto | ingreso (SOLO para tipo 'editar', si el usuario quiere cambiar el tipo de la transacción)",
+      "periodo": "hoy | ayer | semana | mes | ultimos (SOLO para tipo 'consulta_gasto_categoria')",
+      "persona": "nombre de la persona (SOLO para 'nueva_deuda' o 'pagar_deuda')",
+      "deudaTipo": "debo | me_deben (SOLO para 'nueva_deuda')",
+      "metaNombre": "nombre de la meta de ahorro (SOLO para 'abonar_meta')"
     }
   ]
 }
@@ -235,42 +261,43 @@ Si el mensaje es solo un saludo o no puedes entender qué quiere hacer, devuelve
 }
 
 export function getHelpMessage(): string {
-  return `🤖 *¡Hola! Soy tu asistente contable y financiero (GESTOR.AI).* 
+  return `🤖 *¡Hola! Soy tu asistente financiero inteligente (GESTOR AI).*
 
-Puedes enviarme notas de voz, fotos de facturas o texto. Aquí tienes los comandos que entiendo:
+Puedes escribirme, enviar notas de voz, fotos de facturas o usar comandos rápidos con \`/\`:
 
-💰 *REGISTROS RÁPIDOS:*
-• *Gastos:* "gasté 50 en comida", "pagué 20 de taxi", "12.50 pasaje de bus"
+⚡ *COMANDOS RÁPIDOS:*
+/saldos · /gastos · /movimientos · /presupuestos
+/deudas · /metas · /analizar · /deshacer · /web
+
+💰 *REGISTROS RÁPIDOS (Voz o Texto):*
+• *Gastos:* "gasté 50 en comida", "12.50 pasaje de bus"
 • *Ingresos:* "recibí 500 de salario", "ingresé 100"
-• *Con fecha:* "ayer gasté 30 en ropa", "el lunes pagué 15 de almuerzo"
+• *Con fecha:* "ayer gasté 30 en ropa", "el lunes pagué 15"
 
 💸 *TRANSFERENCIAS ENTRE CUENTAS:*
 • "transferí 50 de efectivo a produbanco"
 • "mueve 100 de guayaquil a peigo"
 
-🔄 *RECLASIFICAR Y EDITAR (Última Transacción):*
-• *Cambiar categoría:* "era comida no cine", "pásalo a juguetes"
-• *Cambiar monto:* "cambia el monto a 60", "era 10 no 20"
-• *Cambiar cuenta:* "fue con tarjeta no efectivo", "pagado con produbanco"
-• *Cambiar tipo:* "cámbialo a ingreso"
+🔄 *RECLASIFICAR, EDITAR Y DESHACER:*
+• *Cambiar categoría:* "era comida no cine", "pásalo a transporte"
+• *Cambiar monto/cuenta:* "era 10 no 20", "fue con produbanco"
+• *Deshacer:* "borra eso", "cancela el último gasto" o /deshacer
 
-❌ *ELIMINAR / DESHACER:*
-• "borra eso", "cancela el último gasto", "elimina la última transacción"
+💼 *CONSULTAS INTELIGENTES:*
+• *Saldos:* "mi saldo", "cuánto tengo en efectivo" o /saldos
+• *Gastos por periodo:* "cuánto gasté hoy", "gastos de ayer", "esta semana"
+• *Últimos movimientos:* "últimos gastos" o /movimientos
+• *Gastos por categoría:* "cuánto gasté en comida esta semana"
+• *Presupuestos:* "estoy dentro del presupuesto" o /presupuestos
 
-💼 *CONSULTAS Y REPORTES:*
-• *Saldos de cuentas:* "mi saldo", "cuánto tengo en efectivo", "balances"
-• *Gastos generales del mes:* "mis gastos", "cuánto he gastado este mes", "gastos del mes"
-• *Gastos por categoría:* "cuánto gasté en comida", "gastos de viaje este mes", "qué gasté en taxi"
-• *Presupuestos:* "mis presupuestos", "estoy dentro del presupuesto"
+🤝 *DEUDAS Y METAS:*
+• *Deudas:* "mis deudas", "le debo 40 a Juan", "Juan me pagó" o /deudas
+• *Metas:* "mis metas", "ahorré 50 para laptop" o /metas
 
-🧠 *ASESORÍA IA (GESTOR.AI):*
-• "analiza mis finanzas", "dame consejos", "recomiéndame qué hacer"
+🧠 *ASESORÍA IA:*
+• "analiza mis finanzas", "dame consejos" o /analizar
 
-📸 *FACTURAS:*
-• Envía una foto de tu ticket o factura y la procesaré automáticamente.
-
-🌐 *APLICACIÓN WEB:*
-• Escribe "link" o "web" para obtener el enlace de acceso directo.`;
+📸 *FACTURAS:* Envía una foto de tu ticket o factura y la procesaré.`;
 }
 
 export async function editPendingWithAI<T extends Record<string, unknown>>(
