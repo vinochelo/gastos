@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebase-admin";
+import { corsPreflightResponse } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
@@ -40,4 +41,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({ error: "Use POST method" }, { status: 400 });
+}
+
+export async function OPTIONS() {
+  return corsPreflightResponse();
 }

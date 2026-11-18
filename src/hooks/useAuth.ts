@@ -22,6 +22,7 @@ import { Capacitor } from "@capacitor/core";
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID =
   "505851925373-rn8c8fnrjnht0qllfsldrnlnjoihijpf.apps.googleusercontent.com";
+const PROD_LOGIN_URL = "https://gastos-delta-pearl.vercel.app/login";
 
 export async function signOutAll() {
   if (Capacitor.isNativePlatform()) {
@@ -82,7 +83,6 @@ export function useAuth() {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      // Primera vez: crear el documento con campos básicos
       await setDoc(userRef, {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
@@ -95,7 +95,6 @@ export function useAuth() {
         incomeCategories: ["Salario", "Inversion", "Regalo", "Otro"]
       });
 
-      // Crear cuentas por defecto
       for (const acc of DEFAULT_ACCOUNTS) {
         await addDoc(collection(db, "accounts"), {
           userId: firebaseUser.uid,
@@ -105,7 +104,6 @@ export function useAuth() {
         });
       }
     } else {
-      // Ya existe: solo asegurar que tiene los campos esenciales
       const existingData = userSnap.data();
       const updates: Record<string, unknown> = {
         email: firebaseUser.email,
@@ -123,78 +121,116 @@ export function useAuth() {
     }
   };
 
-  const loginWithGoogle = async () => {
+  /**
+   * Inicia sesión con Google usando el navegador del dispositivo o del navegador web.
+   * En Android nativo devuelve un sessionId para hacer polling automático hasta que el navegador complete el login.
+   */
+  const loginWithGoogleBrowser = async (): Promise<string | null> => {
     setError(null);
-    try {
-      const isNative = Capacitor.isNativePlatform();
-      
-      if (isNative) {
-        // En Android nativo, usa el selector de cuentas Google del dispositivo
-        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
-        const webClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
-
-        await GoogleAuth.initialize({
-          clientId: webClientId,
-          scopes: ['profile', 'email'],
-          grantOfflineAccess: false,
-        });
-
-        const googleUser = await GoogleAuth.signIn();
-        const idToken = googleUser.authentication?.idToken;
-        
-        if (!idToken) {
-          throw new Error("No se recibió ID Token del inicio de sesión de Google.");
+    if (Capacitor.isNativePlatform()) {
+      const sessionId = `mob_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const browserUrl = `${PROD_LOGIN_URL}?mobile_session=${encodeURIComponent(sessionId)}`;
+      try {
+        const opened = window.open(browserUrl, '_system');
+        if (!opened) {
+          const anchor = document.createElement('a');
+          anchor.href = browserUrl;
+          anchor.target = '_blank';
+          anchor.rel = 'noopener noreferrer';
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
         }
+      } catch {
+        window.location.href = browserUrl;
+      }
+      return sessionId;
+    }
 
-        const credential = GoogleAuthProvider.credential(idToken);
-        const result = await signInWithCredential(auth, credential);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      try {
+        const result = await signInWithPopup(auth, provider);
         await initializeUserRecord(result.user);
         setUser(result.user);
-      } else {
-        // En PC/Web, abre el selector de sesiones Google activas del navegador
-        const provider = new GoogleAuthProvider();
-        provider.addScope('profile');
-        provider.addScope('email');
-        provider.setCustomParameters({ prompt: 'select_account' });
-
-        try {
-          const result = await signInWithPopup(auth, provider);
-          await initializeUserRecord(result.user);
-          setUser(result.user);
-        } catch (popupErr: unknown) {
-          const code = (popupErr as { code?: string })?.code;
-          if (
-            code === 'auth/popup-blocked' ||
-            code === 'auth/operation-not-supported-in-this-environment'
-          ) {
-            await signInWithRedirect(auth, provider);
-            return;
-          }
-          throw popupErr;
+      } catch (popupErr: unknown) {
+        const code = (popupErr as { code?: string })?.code;
+        if (
+          code === 'auth/popup-blocked' ||
+          code === 'auth/operation-not-supported-in-this-environment'
+        ) {
+          await signInWithRedirect(auth, provider);
+          return null;
         }
+        throw popupErr;
       }
-    } catch (error: unknown) {
-      console.error("Error en login con Google:", error);
-      const errObj = error as { code?: string; message?: string };
+    } catch (err: unknown) {
+      console.error("Error en login con Google (web):", err);
+      const errObj = err as { code?: string; message?: string };
       const code = String(errObj?.code || "");
       const msg = String(errObj?.message || "");
-      let errorMessage = "Error al iniciar sesión con Google.";
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request" || msg.includes("closed")) {
+        setError("Ventana cerrada. Intenta de nuevo.");
+      } else if (code === "auth/unauthorized-domain") {
+        setError("Dominio no autorizado. Contacta al administrador.");
+      } else if (code === "auth/network-request-failed") {
+        setError("Error de red al conectar con Google.");
+      } else {
+        setError(msg || "Error al iniciar sesión con Google.");
+      }
+    }
+    return null;
+  };
+
+  /**
+   * En Android intenta primero el selector nativo de Google y si falla técnicamente (p.ej. SHA-1 / Play Services)
+   * abre automáticamente el flujo por navegador con las cuentas ya iniciadas en el teléfono.
+   */
+  const loginWithGoogle = async (): Promise<string | null> => {
+    setError(null);
+    if (!Capacitor.isNativePlatform()) {
+      return await loginWithGoogleBrowser();
+    }
+
+    try {
+      const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+      const webClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID;
+
+      await GoogleAuth.initialize({
+        clientId: webClientId,
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: false,
+      });
+
+      const googleUser = await GoogleAuth.signIn();
+      const idToken = googleUser.authentication?.idToken;
+
+      if (!idToken) {
+        throw new Error("No se recibió ID Token del inicio de sesión de Google.");
+      }
+
+      const credential = GoogleAuthProvider.credential(idToken);
+      const result = await signInWithCredential(auth, credential);
+      await initializeUserRecord(result.user);
+      setUser(result.user);
+      return null;
+    } catch (err: unknown) {
+      console.warn("GoogleAuth nativo falló, verificando cancelación o usando navegador:", err);
+      const errObj = err as { code?: string; message?: string };
+      const code = String(errObj?.code || "");
+      const msg = String(errObj?.message || "");
 
       if (code === "12501" || msg.includes("12501") || msg.toLowerCase().includes("cancel")) {
-        errorMessage = "Inicio de sesión cancelado.";
-      } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request" || msg.includes("closed")) {
-        errorMessage = "Ventana cerrada. Intenta de nuevo.";
-      } else if (code === "10" || msg.includes("DEVELOPER_ERROR")) {
-        errorMessage = "Falta registrar la huella SHA-1 de esta build en Firebase Console.";
-      } else if (code === "auth/unauthorized-domain") {
-        errorMessage = "Dominio no autorizado. Contacta al administrador.";
-      } else if (code === "auth/network-request-failed") {
-        errorMessage = "Error de red al conectar con Google.";
-      } else if (msg) {
-        errorMessage = msg;
+        setError("Inicio de sesión cancelado.");
+        return null;
       }
-      
-      setError(errorMessage);
+
+      // Fallback transparente al navegador donde ya están abiertas las cuentas Google
+      return await loginWithGoogleBrowser();
     }
   };
 
@@ -280,11 +316,13 @@ export function useAuth() {
   return { 
     user, 
     loading, 
-    loginWithGoogle, 
+    loginWithGoogle,
+    loginWithGoogleBrowser,
     loginWithCustomToken, 
     loginWithEmail, 
     signUpWithEmail, 
     logout, 
-    error 
+    error,
+    clearError: () => setError(null),
   };
 }
