@@ -7,7 +7,7 @@ import {
   collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc 
 } from "firebase/firestore";
 import { 
-  Plus, X, ChevronLeft, DollarSign, Trash2, Menu, AlertCircle, Calendar, User, Check, RefreshCw 
+  X, ChevronLeft, DollarSign, Trash2, AlertCircle, User, Check, RefreshCw 
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
@@ -26,7 +26,7 @@ interface Debt {
 export default function DeudasPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
-  const { openDrawer, formatAmount, showToast, confirmAction } = useApp();
+  const { formatAmount, showToast, confirmAction } = useApp();
   const router = useRouter();
 
   // Modal states
@@ -154,28 +154,20 @@ export default function DeudasPage() {
   };
 
   return (
-    <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="fixed top-0 left-0 right-0 h-1 z-50 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500" />
-      
+    <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between py-2 border-b border-border/20">
+      <div className="flex items-center justify-between pt-1 gap-3">
         <div className="flex items-center gap-3">
           <button 
-            onClick={openDrawer}
-            className="md:hidden p-2 hover:bg-accent/40 rounded-xl transition-colors cursor-pointer"
-            title="Abrir Menú"
-          >
-            <Menu size={20} className="opacity-70 text-foreground" />
-          </button>
-          <button 
+            type="button"
             onClick={() => router.push('/')}
-            className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+            className="hidden md:flex w-9 h-9 rounded-xl bg-card border border-border hover:border-primary/40 items-center justify-center transition-colors cursor-pointer"
           >
-            <ChevronLeft size={18} className="opacity-50 text-foreground" />
+            <ChevronLeft size={18} className="opacity-60 text-foreground" />
           </button>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-red-500/80">Flujo de Préstamos</p>
-            <h1 className="text-2xl font-black tracking-tight text-foreground">Deudas</h1>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">Flujo de Préstamos</p>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Deudas y Cobros</h1>
           </div>
         </div>
       </div>

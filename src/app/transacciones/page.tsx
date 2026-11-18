@@ -2,8 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Transaction, useUserConfig, useAccounts, useMonthTransactions } from "@/hooks/useFirestore";
-import { Search, Settings, Menu, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Search, Plus, Mic, Square, Loader2 } from "lucide-react";
 import EditTransactionModal from "@/components/EditTransactionModal";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import TransactionItem from "@/components/TransactionItem";
@@ -11,7 +10,15 @@ import { useApp } from "@/context/AppContext";
 import { deleteTransactionAtomic } from "@/lib/transactions";
 
 export default function TransaccionesPage() {
-  const { formatAmount, openDrawer, showToast, confirmAction } = useApp();
+  const {
+    formatAmount,
+    showToast,
+    confirmAction,
+    isGlobalRecording,
+    isGlobalVoiceLoading,
+    startGlobalVoiceRecording,
+    stopGlobalVoiceRecording,
+  } = useApp();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
@@ -24,7 +31,6 @@ export default function TransaccionesPage() {
   const { transactions, loading } = useMonthTransactions(selectedMonth, selectedYear);
   const { accounts } = useAccounts();
   const { config } = useUserConfig();
-  const router = useRouter();
 
   const monthOptions = useMemo(() => {
     const options = [];
@@ -79,57 +85,62 @@ export default function TransaccionesPage() {
   };
 
   return (
-    <div className="space-y-5 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-5 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 py-2 border-b border-border/20">
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={openDrawer}
-            className="md:hidden p-2 hover:bg-accent/40 rounded-xl transition-colors cursor-pointer shrink-0"
-            title="Abrir Menú"
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <div className="min-w-0">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">
+            Historial Financiero
+          </p>
+          <select
+            value={`${selectedMonth}-${selectedYear}`}
+            onChange={(e) => {
+              const [m, y] = e.target.value.split("-").map(Number);
+              setSelectedMonth(m);
+              setSelectedYear(y);
+            }}
+            className="text-xl sm:text-2xl font-black tracking-tight text-foreground bg-transparent border-none p-0 pr-6 capitalize cursor-pointer focus:outline-none hover:text-primary"
           >
-            <Menu size={20} className="opacity-70 text-foreground" />
-          </button>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">
-              Historial Financiero
-            </p>
-            <select
-              value={`${selectedMonth}-${selectedYear}`}
-              onChange={(e) => {
-                const [m, y] = e.target.value.split("-").map(Number);
-                setSelectedMonth(m);
-                setSelectedYear(y);
-              }}
-              className="text-2xl font-black tracking-tight text-foreground bg-transparent border-none p-0 pr-6 capitalize cursor-pointer focus:outline-none hover:text-indigo-500"
-            >
-              {monthOptions.map((opt) => (
-                <option
-                  key={`${opt.month}-${opt.year}`}
-                  value={`${opt.month}-${opt.year}`}
-                  className="bg-white dark:bg-gray-800 text-foreground text-sm"
-                >
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+            {monthOptions.map((opt) => (
+              <option
+                key={`${opt.month}-${opt.year}`}
+                value={`${opt.month}-${opt.year}`}
+                className="bg-card text-foreground text-sm"
+              >
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setIsAddOpen(true)}
-            title="Nuevo movimiento"
-            className="h-10 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+            type="button"
+            onClick={isGlobalRecording ? stopGlobalVoiceRecording : startGlobalVoiceRecording}
+            disabled={isGlobalVoiceLoading}
+            title="Dictar movimiento por voz"
+            className={`hidden sm:flex h-10 px-3.5 rounded-xl border text-xs font-bold items-center gap-1.5 transition-all cursor-pointer ${
+              isGlobalRecording
+                ? "bg-rose-500 text-white border-rose-500"
+                : "bg-card border-border text-foreground hover:border-primary/40"
+            }`}
           >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Nuevo</span>
+            {isGlobalVoiceLoading ? (
+              <Loader2 size={14} className="animate-spin text-primary" />
+            ) : isGlobalRecording ? (
+              <Square size={12} className="fill-current" />
+            ) : (
+              <Mic size={14} className="text-primary" />
+            )}
+            <span>{isGlobalRecording ? "Detener" : "Voz IA"}</span>
           </button>
           <button
-            onClick={() => router.push("/ajustes")}
-            title="Ajustes"
-            className="w-10 h-10 rounded-xl bg-white dark:bg-gray-800 border border-border flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 cursor-pointer shadow-sm text-foreground/75"
+            type="button"
+            onClick={() => setIsAddOpen(true)}
+            title="Nuevo movimiento"
+            className="h-10 px-4 rounded-xl bg-primary hover:opacity-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-primary/20 active:scale-95 transition-all cursor-pointer"
           >
-            <Settings size={18} className="opacity-80" />
+            <Plus size={16} />
+            <span>Nuevo</span>
           </button>
         </div>
       </div>
@@ -143,7 +154,7 @@ export default function TransaccionesPage() {
             placeholder="Buscar por descripción, categoría o monto..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-gray-800 border border-border/80 p-3.5 pl-11 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent transition-all shadow-sm text-foreground placeholder-foreground/30 font-medium"
+            className="w-full bg-card border border-border p-3.5 pl-11 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all shadow-sm text-foreground placeholder-foreground/35 font-medium"
           />
         </div>
 

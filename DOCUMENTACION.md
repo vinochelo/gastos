@@ -107,13 +107,17 @@ El bot es una instancia de `Telegraf` montada en una ruta POST serverless. Reali
 
 ---
 
-## 5. Entrada de Voz en la Aplicación Móvil (`/api/voice-input`)
+## 5. Entrada de Voz y Texto en la Aplicación Web y Móvil (`/api/voice-input` y `/api/text-input`)
 
-Para permitir la entrada de voz dentro del celular sin pasar por Telegram, implementamos el siguiente flujo:
-1.  **Grabación**: En `page.tsx` el componente utiliza `MediaRecorder` para capturar el audio del micrófono del teléfono en un Blob.
-2.  **Envío a API**: Se envía por FormData a la ruta `/api/voice-input`.
-3.  **Resolución de Dominio (`getApiUrl`)**: Capacitor no soporta rutas relativas. La utilidad `src/lib/api.ts` detecta si la app corre dentro del contenedor nativo y redirige las llamadas al endpoint absoluto en Vercel (`https://gastos-delta-pearl.vercel.app/api/voice-input`).
-4.  **Confirmación Auditada**: En lugar de guardar silenciosamente la transacción, la app abre el modal de **Agregar Movimiento** o **Transferencia** con los campos autocompletados por la IA. El usuario valida los datos visualmente y los guarda manualmente.
+Para permitir el registro automático por voz y texto natural en web y Android sin pasar por Telegram, implementamos el siguiente flujo:
+1.  **Grabación Multiplataforma (`getSupportedAudioMimeType`)**: Desde el botón global **Voz IA** (barra inferior móvil, sidebar de escritorio o panel principal) o dentro de los modales, `MediaRecorder` detecta automáticamente el códec de audio compatible (`audio/webm;codecs=opus`, `audio/mp4`, `audio/ogg`). En Android, `MainActivity.java` solicita proactivamente el permiso `RECORD_AUDIO` al iniciar la app.
+2.  **Envío a API**: Se envía por FormData a `/api/voice-input` (o JSON a `/api/text-input`).
+3.  **Resolución de Dominio (`getApiUrl`)**: Capacitor redirige las llamadas desde la app nativa al endpoint absoluto en Vercel (`https://gastos-delta-pearl.vercel.app/api/voice-input`), con soporte explícito de preflight `OPTIONS` CORS.
+4.  **Ejecución Automática Estilo Telegram (`src/lib/voiceExecutor.ts`)**: Al recibir la lista `items` estructurada por Groq, el cliente ejecuta de forma atómica en Firestore (`writeBatch`):
+    - Registro directo de uno o varios **gastos**, **ingresos** o **transferencias** con emparejamiento difuso de cuentas/categorías, soporte de fecha (`item.fecha`) y evaluación de presupuestos.
+    - Comandos de edición, reclasificación, reverso, deudas (`nueva_deuda`, `pagar_deuda`) y abonos a metas (`abonar_meta`).
+    - Si falta un dato crítico (ej. monto o cuentas de transferencia), abre el modal pre-llenado para completarlo.
+5.  **Confirmación Auditada con Edición y Reverso**: Tras el registro automático, `GlobalVoiceAssistant` muestra la transcripción exacta, el detalle de lo registrado, alertas de presupuesto y botones rápidos para **Editar** o **Deshacer** el movimiento.
 
 ---
 
@@ -152,9 +156,10 @@ Para que el frontend en el celular (APK/Capacitor) pueda interoperar con la base
 ---
 
 ## 8. Sistema de Versionamiento de la App
-*   Centralizamos la versión de la aplicación en `src/lib/version.ts` como `2.1.0`.
-*   Esta versión se inyecta dinámicamente en el sidebar de navegación lateral en computadoras, y en el pie de página de la pantalla de **Ajustes** en la APK para que el usuario pueda auditar el estado de su versión instalada.
-*   El archivo de configuración de Android (`android/app/build.gradle`) incrementa su `versionCode` a `2` y su `versionName` a `"2.1.0"` para que el sistema operativo móvil reconozca la actualización y no genere conflictos al instalar la APK.
+*   Centralizamos la versión de la aplicación en `src/lib/version.ts` (actualmente `2.5.0`).
+*   Esta versión se inyecta dinámicamente en el sidebar de navegación lateral en computadoras, y en el pie de página de la pantalla de **Ajustes** y cajón lateral móvil para que el usuario pueda auditar el estado de su versión instalada.
+*   El archivo de configuración de Android (`android/app/build.gradle`) incrementa su `versionCode` a `6` y su `versionName` a `"2.5.0"` para que el sistema operativo móvil reconozca la actualización y no genere conflictos al instalar la APK.
+*   En `android/gradle.properties`, `org.gradle.java.home` apunta al JBR de Android Studio (JDK 21) y el script `npm run build:apk` automatiza exportación estática, `cap sync android`, `assembleRelease` y generación de `gestor-de-gastos-v2.5.0.apk`.
 
 ---
 

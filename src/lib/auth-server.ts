@@ -1,4 +1,16 @@
 import { adminAuth } from "@/lib/firebase-admin";
+import { NextResponse } from "next/server";
+
+export const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,DELETE,PATCH,POST,PUT,OPTIONS",
+  "Access-Control-Allow-Headers":
+    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization",
+};
+
+export function corsPreflightResponse() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
 
 /**
  * Verifies the Firebase ID token from the Authorization Bearer header.

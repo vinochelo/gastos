@@ -6,7 +6,16 @@ import { db, auth } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, increment, writeBatch, Timestamp } from "firebase/firestore";
 import { X, ArrowRight, Loader2, Calendar, Mic, Square } from "lucide-react";
 import { authFetch } from "@/lib/api";
+import { getSupportedAudioMimeType, findAccountClient } from "@/lib/voiceExecutor";
 import { useApp } from "@/context/AppContext";
+
+function getTodayLocalDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -17,6 +26,7 @@ interface TransferModalProps {
     toId?: string;
     fromCuenta?: string;
     toCuenta?: string;
+    fecha?: string;
   } | null;
 }
 
@@ -26,7 +36,7 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
   const [amount, setAmount] = useState("");
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayLocalDate());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +55,8 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const { mimeType, extension } = getSupportedAudioMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       const chunks: Blob[] = [];
 
       recorder.ondataavailable = (e) => {
@@ -53,13 +64,14 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        const finalMime = mimeType || recorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(chunks, { type: finalMime });
         stream.getTracks().forEach(track => track.stop());
-        await handleVoiceUpload(audioBlob);
+        await handleVoiceUpload(audioBlob, extension);
       };
 
       setMediaRecorder(recorder);
-      recorder.start();
+      recorder.start(250);
       setIsRecording(true);
     } catch (err: any) {
       console.error(err);
@@ -74,13 +86,13 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
     setIsRecording(false);
   };
 
-  const handleVoiceUpload = async (blob: Blob) => {
+  const handleVoiceUpload = async (blob: Blob, extension = "webm") => {
     if (!auth.currentUser) return;
     setVoiceLoading(true);
     setError(null);
     try {
       const formData = new FormData();
-      formData.append("file", blob, "voice.webm");
+      formData.append("file", blob, `voice.${extension}`);
 
       const res = await authFetch("/api/voice-input", {
         method: "POST",
@@ -93,23 +105,18 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
       if (data.result) {
         const result = data.result;
         if (result.monto) setAmount(result.monto.toString());
+        if (result.fecha && /^\d{4}-\d{2}-\d{2}$/.test(result.fecha)) setDate(result.fecha);
         
         const originName = result.fromCuenta || result.cuentaAnterior || result.from;
         const destName = result.toCuenta || result.cuenta || result.to;
 
         if (originName) {
-          const matchedAcc = accounts.find(a => 
-            a.nombre.toLowerCase().includes(originName.toLowerCase()) ||
-            originName.toLowerCase().includes(a.nombre.toLowerCase())
-          );
+          const matchedAcc = findAccountClient(originName, accounts);
           if (matchedAcc) setFromId(matchedAcc.id);
         }
 
         if (destName) {
-          const matchedAcc = accounts.find(a => 
-            a.nombre.toLowerCase().includes(destName.toLowerCase()) ||
-            destName.toLowerCase().includes(a.nombre.toLowerCase())
-          );
+          const matchedAcc = findAccountClient(destName, accounts);
           if (matchedAcc) setToId(matchedAcc.id);
         }
         
@@ -160,7 +167,11 @@ export default function TransferModal({ isOpen, onClose, initialData = null }: T
         setFromId("");
         setToId("");
       }
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(
+        initialData?.fecha && /^\d{4}-\d{2}-\d{2}$/.test(initialData.fecha)
+          ? initialData.fecha
+          : getTodayLocalDate()
+      );
     }
   }, [isOpen, initialData, accounts]);
 

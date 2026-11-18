@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { transcribeAudio, parseTransaction } from "@/services/groq";
-import { getAuthenticatedUserId } from "@/lib/auth-server";
+import { getAuthenticatedUserId, corsPreflightResponse } from "@/lib/auth-server";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     
-    const ext = file.name ? path.extname(file.name) : ".webm";
+    const rawExt = file.name ? path.extname(file.name) : "";
+    const ext = rawExt || ".webm";
     tempFilePath = path.join(os.tmpdir(), `voice-${Date.now()}${ext}`);
     fs.writeFileSync(tempFilePath, buffer);
 
@@ -38,10 +39,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Obtener las cuentas y categorías del usuario desde Firestore
-    const accountsSnap = await adminDb.collection("accounts").where("userId", "==", userId).get();
+    const [accountsSnap, userDoc] = await Promise.all([
+      adminDb.collection("accounts").where("userId", "==", userId).get(),
+      adminDb.collection("users").doc(userId).get(),
+    ]);
     const accountNames = accountsSnap.docs.map(doc => doc.data().nombre);
-
-    const userDoc = await adminDb.collection("users").doc(userId).get();
     const userData = userDoc.exists ? userDoc.data()! : {};
     
     // 4. Analizar la intención de la transacción con Groq LLM
@@ -61,7 +63,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       text: transcribedText,
-      result: parsedResult.items && parsedResult.items.length > 0 ? parsedResult.items[0] : null
+      result: parsedResult.items && parsedResult.items.length > 0 ? parsedResult.items[0] : null,
+      items: parsedResult.items || [],
     });
 
   } catch (error) {
@@ -78,4 +81,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({ error: "Use POST method" }, { status: 400 });
+}
+
+export async function OPTIONS() {
+  return corsPreflightResponse();
 }

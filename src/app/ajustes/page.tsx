@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, onSnapshot } from "firebase/firestore";
-import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, Monitor, ExternalLink, Loader2, Edit2, KeyRound, Sparkles, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, X, ChevronLeft, RefreshCw, LogOut, Copy, Check, MessageCircle, Smartphone, ExternalLink, Loader2, Edit2, KeyRound, Sparkles, ChevronUp, ChevronDown } from "lucide-react";
 import { UserConfig } from "@/hooks/useFirestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { useRouter } from "next/navigation";
@@ -26,10 +26,8 @@ export default function AjustesPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [linkingCode, setLinkingCode] = useState<string | null>(null);
   const [telegramLinked, setTelegramLinked] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const [codeLoading, setCodeLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [userReady, setUserReady] = useState(false);
   
   // Mobile login code state
   const [mobileCode, setMobileCode] = useState<string | null>(null);
@@ -44,11 +42,6 @@ export default function AjustesPage() {
 
   const router = useRouter();
   const { confirmAction } = useApp();
-
-  useEffect(() => {
-    const checkMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    setIsMobile(checkMobile);
-  }, []);
 
   useEffect(() => {
     let unsubscribeUser: (() => void) | null = null;
@@ -89,18 +82,15 @@ export default function AjustesPage() {
               setExpenseCategories(DEFAULT_CATEGORIES);
               setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
             }
-            setUserReady(true);
             setAuthLoading(false);
           }, (err) => {
             console.error("Error loading user config from Firestore snapshot:", err);
             setExpenseCategories(DEFAULT_CATEGORIES);
             setIncomeCategories(["Salario", "Inversion", "Regalo", "Otro"]);
-            setUserReady(true);
             setAuthLoading(false);
           });
         } catch (err) {
           console.error("Error setting up Firestore listener:", err);
-          setUserReady(true);
           setAuthLoading(false);
         }
       } else {
@@ -391,36 +381,37 @@ export default function AjustesPage() {
   const categoriesToDisplay = activeCategoryTab === 'gastos' ? expenseCategories : incomeCategories;
 
   return (
-    <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 pb-12">
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-indigo-900/90 text-white px-6 py-3 rounded-xl shadow-lg text-sm font-semibold border border-indigo-500/10 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-slate-900/95 text-white px-6 py-3 rounded-xl shadow-lg text-sm font-semibold border border-white/10 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-300">
           {toast}
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 pt-1">
         <button 
+          type="button"
           onClick={() => router.push('/')}
-          className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+          className="hidden md:flex w-9 h-9 rounded-xl bg-card border border-border hover:border-primary/40 items-center justify-center transition-colors cursor-pointer"
         >
-          <ChevronLeft size={18} className="opacity-50 text-foreground" />
+          <ChevronLeft size={18} className="opacity-60 text-foreground" />
         </button>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Preferencias</p>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Configuración</h1>
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">Preferencias y Asistente</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Configuración</h1>
         </div>
       </div>
 
       {!telegramLinked && (
-        <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-5 text-white shadow-xl shadow-indigo-500/10 border border-white/10">
+        <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-teal-950 rounded-3xl p-5 text-white shadow-xl border border-white/10">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/10">
+            <div className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/10 text-teal-300">
               <MessageCircle size={20} />
             </div>
             <div className="flex-1">
               <h3 className="font-extrabold text-base mb-1 tracking-tight">Conecta Telegram</h3>
               <p className="text-xs text-white/80 leading-relaxed">
-                Registra transacciones hablando al bot. Di *"gasté 15 dólares en transporte hoy"* y se registrará automáticamente.
+                Registra transacciones hablando al bot. Di &ldquo;gasté 15 dólares en transporte hoy&rdquo; y se registrará automáticamente.
               </p>
             </div>
           </div>

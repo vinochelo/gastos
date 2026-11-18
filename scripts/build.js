@@ -10,6 +10,12 @@ if (isVercel) {
   execSync('next build', { stdio: 'inherit' });
 } else {
   try {
+    for (const dir of ['.next/types', '.next/dev/types']) {
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
+
     if (fs.existsSync(apiPath)) {
       fs.renameSync(apiPath, tempPath);
       console.log('Moved api folder to temp for static export');

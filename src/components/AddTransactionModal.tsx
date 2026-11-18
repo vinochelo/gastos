@@ -8,8 +8,17 @@ import { X, ChevronDown, TrendingUp, TrendingDown, Tag, AlertCircle, Calendar, C
 import { Timestamp } from "firebase/firestore";
 import { DEFAULT_CATEGORIES } from "@/lib/defaults";
 import { authFetch } from "@/lib/api";
+import { getSupportedAudioMimeType, findAccountClient, findCategoryClient } from "@/lib/voiceExecutor";
 import CategoryIcon from "@/components/CategoryIcon";
 import { useApp } from "@/context/AppContext";
+
+function getTodayLocalDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -21,6 +30,7 @@ interface AddTransactionModalProps {
     categoria?: string;
     subcategoria?: string;
     cuenta?: string;
+    fecha?: string;
     tipo?: "gasto" | "ingreso";
   } | null;
 }
@@ -35,7 +45,7 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
   const [category, setCategory] = useState("");
   const [accountId, setAccountId] = useState("");
   const [subcategoria, setSubcategoria] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayLocalDate());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +75,8 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const { mimeType, extension } = getSupportedAudioMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       const chunks: Blob[] = [];
 
       recorder.ondataavailable = (e) => {
@@ -73,13 +84,14 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        const finalMime = mimeType || recorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(chunks, { type: finalMime });
         stream.getTracks().forEach(track => track.stop());
-        await handleVoiceUpload(audioBlob);
+        await handleVoiceUpload(audioBlob, extension);
       };
 
       setMediaRecorder(recorder);
-      recorder.start();
+      recorder.start(250);
       setIsRecording(true);
     } catch (err: any) {
       console.error(err);
@@ -94,13 +106,13 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
     setIsRecording(false);
   };
 
-  const handleVoiceUpload = async (blob: Blob) => {
+  const handleVoiceUpload = async (blob: Blob, extension = "webm") => {
     if (!auth.currentUser) return;
     setVoiceLoading(true);
     setError(null);
     try {
       const formData = new FormData();
-      formData.append("file", blob, "voice.webm");
+      formData.append("file", blob, `voice.${extension}`);
 
       const res = await authFetch("/api/voice-input", {
         method: "POST",
@@ -115,28 +127,23 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         if (result.monto) setAmount(result.monto.toString());
         if (result.descripcion) setDescription(result.descripcion);
         if (result.tipo && (result.tipo === "gasto" || result.tipo === "ingreso")) setType(result.tipo);
+        if (result.fecha && /^\d{4}-\d{2}-\d{2}$/.test(result.fecha)) setDate(result.fecha);
         
         if (result.cuenta) {
-          const matchedAcc = accounts.find(a => 
-            a.nombre.toLowerCase().includes(result.cuenta!.toLowerCase()) ||
-            result.cuenta!.toLowerCase().includes(a.nombre.toLowerCase())
-          );
+          const matchedAcc = findAccountClient(result.cuenta, accounts);
           if (matchedAcc) setAccountId(matchedAcc.id);
         }
 
         const targetCategories = (result.tipo || type) === "gasto" ? expenseCategories : incomeCategories;
-          if (result.categoria) {
-            const matchedCat = targetCategories.find(c => 
-              c.toLowerCase().includes(result.categoria!.toLowerCase()) || 
-              result.categoria!.toLowerCase().includes(c.toLowerCase())
-            );
-            if (matchedCat) {
-              setCategory(matchedCat);
-              setSubcategoria(result.subcategoria || "");
-            }
+        if (result.categoria) {
+          const matchedCat = findCategoryClient(result.categoria, targetCategories);
+          if (matchedCat) {
+            setCategory(matchedCat);
+            setSubcategoria(result.subcategoria || "");
           }
+        }
           
-          showToastLocal("Campos completados por voz!");
+        showToastLocal("Campos completados por voz!");
       } else {
         setError("La IA no pudo clasificar este audio. Transcripción: \"" + data.text + "\"");
       }
@@ -195,7 +202,11 @@ export default function AddTransactionModal({ isOpen, onClose, defaultType = "ga
         setCategory(categories.length > 0 ? categories[0] : "");
         setSubcategoria("");
       }
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(
+        initialData?.fecha && /^\d{4}-\d{2}-\d{2}$/.test(initialData.fecha)
+          ? initialData.fecha
+          : getTodayLocalDate()
+      );
       setError(null);
       setIsCategoryDropdownOpen(false);
     }

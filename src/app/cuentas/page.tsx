@@ -162,19 +162,21 @@ export default function CuentasPage() {
   };
 
   return (
-    <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <header className="flex justify-between items-center py-4">
+    <div className="space-y-6 pb-12">
+      <header className="flex justify-between items-center pt-1 gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500/80 dark:text-indigo-400">Patrimonio</p>
-          <h1 className="text-3xl font-black tracking-tight text-foreground">Mis Cuentas</h1>
-          <p className="text-xs text-foreground/50 mt-1 font-semibold">Administra tus saldos y fuentes de fondos</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">Patrimonio</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Mis Cuentas</h1>
+          <p className="text-xs text-foreground/55 mt-0.5 font-medium">Administra tus saldos y fuentes de fondos</p>
         </div>
         <button 
+          type="button"
           onClick={() => setIsCreateOpen(true)}
           title="Añadir Cuenta"
-          className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer"
+          className="bg-primary hover:opacity-95 text-white h-10 px-4 rounded-xl shadow-md shadow-primary/20 active:scale-95 transition-all cursor-pointer font-bold text-xs flex items-center gap-1.5 shrink-0"
         >
-          <Plus size={22} />
+          <Plus size={16} />
+          <span>Nueva</span>
         </button>
       </header>
 

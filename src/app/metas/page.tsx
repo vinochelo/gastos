@@ -7,7 +7,7 @@ import {
   collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, increment 
 } from "firebase/firestore";
 import { 
-  Plus, X, ChevronLeft, Target, Trash2, Menu, AlertCircle, Calendar,
+  Plus, X, ChevronLeft, Target, Trash2, AlertCircle,
   Car, Home, Palmtree, GraduationCap, ShieldAlert, Heart, Wine, Baby
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -45,7 +45,7 @@ const TEMPLATES: Record<string, TemplateOption> = {
 export default function MetasPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
-  const { openDrawer, formatAmount, showToast, confirmAction } = useApp();
+  const { formatAmount, showToast, confirmAction } = useApp();
   const router = useRouter();
 
   // Create Goal modal state
@@ -187,36 +187,30 @@ export default function MetasPage() {
   };
 
   return (
-    <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="fixed top-0 left-0 right-0 h-1 z-50 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500" />
-      
+    <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between py-2 border-b border-border/20">
+      <div className="flex items-center justify-between pt-1 gap-3">
         <div className="flex items-center gap-3">
           <button 
-            onClick={openDrawer}
-            className="md:hidden p-2 hover:bg-accent/40 rounded-xl transition-colors cursor-pointer"
-            title="Abrir Menú"
-          >
-            <Menu size={20} className="opacity-70 text-foreground" />
-          </button>
-          <button 
+            type="button"
             onClick={() => router.push('/')}
-            className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+            className="hidden md:flex w-9 h-9 rounded-xl bg-card border border-border hover:border-primary/40 items-center justify-center transition-colors cursor-pointer"
           >
-            <ChevronLeft size={18} className="opacity-50 text-foreground" />
+            <ChevronLeft size={18} className="opacity-60 text-foreground" />
           </button>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/80 dark:text-emerald-400">Objetivos de Ahorro</p>
-            <h1 className="text-2xl font-black tracking-tight text-foreground">Metas</h1>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">Objetivos de Ahorro</p>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Metas</h1>
           </div>
         </div>
         <button 
+          type="button"
           onClick={handleOpenCreate}
           title="Crear Meta"
-          className="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer"
+          className="bg-primary hover:opacity-95 text-white h-10 px-4 rounded-xl shadow-md shadow-primary/20 active:scale-95 transition-all cursor-pointer font-bold text-xs flex items-center gap-1.5 shrink-0"
         >
-          <Plus size={20} />
+          <Plus size={16} />
+          <span>Nueva</span>
         </button>
       </div>
 

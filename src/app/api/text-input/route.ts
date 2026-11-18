@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { parseTransaction } from "@/services/groq";
-import { getAuthenticatedUserId } from "@/lib/auth-server";
+import { getAuthenticatedUserId, corsPreflightResponse } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
 
@@ -41,4 +41,8 @@ export async function POST(request: NextRequest) {
     console.error("Error en text-input:", error);
     return NextResponse.json({ error: "Error al procesar el texto" }, { status: 500 });
   }
+}
+
+export async function OPTIONS() {
+  return corsPreflightResponse();
 }

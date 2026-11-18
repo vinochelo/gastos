@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebase-admin";
 import { generateFinancialAnalysis } from "@/services/groq";
-import { getAuthenticatedUserId } from "@/lib/auth-server";
+import { getAuthenticatedUserId, corsPreflightResponse } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
 
@@ -99,4 +99,8 @@ export async function POST(request: NextRequest) {
     console.error("Error generating API financial analysis:", error);
     return NextResponse.json({ error: "Error interno al generar análisis" }, { status: 500 });
   }
+}
+
+export async function OPTIONS() {
+  return corsPreflightResponse();
 }
